@@ -44,6 +44,7 @@ final class KuaizCmsPublicApplication
             'label' => $type['label'],
             'url' => '/' . $type['route_slug'],
         ], $types);
+        $extensionSlots = KuaizCmsExtensionRegistry::activeThemeSlots($pdo);
 
         if ($path === '/') {
             $featured = [];
@@ -71,6 +72,7 @@ final class KuaizCmsPublicApplication
                 'content' => [],
                 'collection' => ['featured' => $featured, 'faq' => []],
                 'navigation' => $navigation,
+                'extension_slots' => $extensionSlots,
             ];
             return self::head(KuaizCmsThemeRenderer::render(
                 $settings,
@@ -105,6 +107,7 @@ final class KuaizCmsPublicApplication
                     'content' => [],
                     'collection' => ['current' => $entries],
                     'navigation' => $navigation,
+                    'extension_slots' => $extensionSlots,
                 ];
                 return self::head(KuaizCmsThemeRenderer::render(
                     $settings,
@@ -137,6 +140,7 @@ final class KuaizCmsPublicApplication
                         'content' => $content,
                         'collection' => [],
                         'navigation' => $navigation,
+                        'extension_slots' => $extensionSlots,
                     ];
                     return self::head(KuaizCmsThemeRenderer::render(
                         $settings,
@@ -156,6 +160,7 @@ final class KuaizCmsPublicApplication
             'content' => [],
             'collection' => [],
             'navigation' => $navigation,
+            'extension_slots' => $extensionSlots,
         ];
         return self::head(KuaizCmsThemeRenderer::render(
             $settings,

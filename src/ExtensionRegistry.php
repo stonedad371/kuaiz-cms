@@ -4,6 +4,27 @@ declare(strict_types=1);
 /** Register declarative extensions without loading extension-owned PHP code. */
 final class KuaizCmsExtensionRegistry
 {
+    public static function activeThemeSlots(PDO $pdo): array
+    {
+        $rows = $pdo->query(<<<'SQL'
+SELECT s.slot_key
+FROM cms_theme_slots s
+JOIN cms_extensions e
+  ON e.extension_id=s.extension_id AND e.status='active'
+ORDER BY s.slot_key ASC
+SQL)->fetchAll();
+        $slots = [];
+        foreach ($rows as $row) {
+            $slot = is_array($row) ? ($row['slot_key'] ?? null) : null;
+            if (!is_string($slot)
+                || !preg_match('/^[a-z][a-z0-9.-]{2,119}$/D', $slot)) {
+                throw new RuntimeException('extension_theme_slot_storage_corrupt');
+            }
+            $slots[$slot] = true;
+        }
+        return $slots;
+    }
+
     public static function installDeclarative(
         PDO $pdo,
         string $manifestJson,

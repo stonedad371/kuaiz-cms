@@ -57,6 +57,13 @@ KUAIZ_CMS_DATA_DIR=/absolute/private/path php bin/cms-init.php
 KUAIZ_CMS_DATA_DIR=/absolute/private/path php -S 127.0.0.1:8080 -t public public/index.php
 ```
 
+部署后可以随时运行只读健康检查；它会报告 PHP 能力、数据目录、SQLite 完整性、当前 schema
+以及是否需要升级，不会自行修改数据库：
+
+```bash
+KUAIZ_CMS_DATA_DIR=/absolute/private/path php bin/cms-doctor.php
+```
+
 ## 正式服务器
 
 开发者自行部署时，应把 Web 根目录指向 `public/`，其余源码和数据目录不得公开访问。Apache
@@ -92,6 +99,9 @@ php bin/cms-restore.php /absolute/path/to/backup-directory --yes
   权限、路由、事件、数据和网络边界；
 - [`extensions/kuaiz-directory/extension.json`](extensions/kuaiz-directory/extension.json) 是
   声明式内容目录示例。
+
+声明式扩展注册的 Theme 插槽会由 Core 校验并渲染；主题只能绑定经过内容协议验证的字段，
+不能通过插槽执行 PHP、查询任意数据或绕过统一转义与内容安全策略。
 
 当前普通管理员不能上传执行第三方 PHP。预约、会员等可执行能力必须经过单独的官方签名、
 最小权限、数据迁移和隐私审查。

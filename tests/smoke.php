@@ -188,6 +188,8 @@ try {
         [
             'title' => 'First listing',
             'summary' => 'Published by the repository smoke test.',
+            'phone' => '+86 10 5555 0123',
+            'website' => 'https://example.com/first-listing',
         ],
         'test:smoke',
         true
@@ -201,6 +203,12 @@ try {
     smoke_require(
         str_contains($response['body'], 'First listing'),
         'smoke_public_content_failed'
+    );
+    smoke_require(
+        str_contains($response['body'], 'data-extension-slot="kuaiz.directory.detail"')
+            && str_contains($response['body'], '+86 10 5555 0123')
+            && str_contains($response['body'], 'https://example.com/first-listing'),
+        'smoke_public_extension_slot_failed'
     );
     smoke_require(
         str_contains((string)($response['headers']['X-Robots-Tag'] ?? ''), 'noindex'),

@@ -109,7 +109,11 @@ final class KuaizCmsThemeRenderer
             'faq' => self::faq($data),
             'cta' => self::cta($data, $section['options']),
             'contact' => self::contact($data, $settings),
-            'extension_slot' => '',
+            'extension_slot' => self::extensionSlot(
+                (string)$section['options']['slot'],
+                $data,
+                $context
+            ),
             default => '',
         };
         if ($content === '' && $section['visibility']['when_empty'] === 'hide') {
@@ -259,6 +263,56 @@ final class KuaizCmsThemeRenderer
         return '<div id="contact"><h2>' . self::h($title) . '</h2><p>' . self::h($summary) . '</p></div>';
     }
 
+    private static function extensionSlot(string $slot, array $data, array $context): string
+    {
+        $available = $context['extension_slots'] ?? null;
+        if (!is_array($available) || !isset($available[$slot])) {
+            return '';
+        }
+        if (isset($data['items']) && is_array($data['items'])) {
+            return self::cardGrid($data, ['columns' => 3], $context);
+        }
+        $title = self::optionalText($data['title'] ?? null, 300);
+        $summary = self::optionalText($data['summary'] ?? $data['body'] ?? null, 5000);
+        $phone = self::optionalText($data['phone'] ?? null, 100);
+        $website = self::safeExternalUrl($data['website'] ?? null);
+        $image = self::image($data['image'] ?? $data['cover'] ?? null, $context, false);
+        $details = '';
+        if ($phone !== '' && preg_match('/^[0-9+() .-]{3,100}$/D', $phone)) {
+            $telephone = preg_replace('/[^0-9+]/', '', $phone);
+            if (is_string($telephone) && $telephone !== '') {
+                $details .= '<a class="extension-action" href="tel:' . self::h($telephone)
+                    . '"><span>联系电话</span><strong>' . self::h($phone) . '</strong></a>';
+            }
+        }
+        if ($website !== '') {
+            $details .= '<a class="extension-action" href="' . self::h($website)
+                . '" rel="noopener noreferrer"><span>官方网站</span><strong>打开网站 ↗</strong></a>';
+        }
+        if ($title === '' && $summary === '' && $image === '' && $details === '') {
+            return '';
+        }
+        return '<div class="extension-slot" data-extension-slot="' . self::h($slot) . '"><div class="extension-copy">'
+            . ($title === '' ? '' : '<h2>' . self::h($title) . '</h2>')
+            . ($summary === '' ? '' : '<p>' . self::h($summary) . '</p>')
+            . ($details === '' ? '' : '<div class="extension-actions">' . $details . '</div>')
+            . '</div>' . ($image === '' ? '' : '<div class="extension-image">' . $image . '</div>')
+            . '</div>';
+    }
+
+    private static function safeExternalUrl(mixed $value): string
+    {
+        if (!is_string($value) || $value === '' || strlen($value) > 2048) {
+            return '';
+        }
+        $parts = parse_url($value);
+        if (!is_array($parts) || ($parts['scheme'] ?? '') !== 'https'
+            || empty($parts['host']) || isset($parts['user']) || isset($parts['pass'])) {
+            return '';
+        }
+        return $value;
+    }
+
     private static function image(mixed $value, array $context, bool $thumbnail): string
     {
         if (!is_int($value) || $value < 1 || !isset($context['media'][$value])
@@ -385,7 +439,8 @@ final class KuaizCmsThemeRenderer
             . '.shell{width:min(var(--width),calc(100% - 36px));margin-inline:auto}.site-header{background:color-mix(in srgb,var(--bg) 92%,transparent);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10;backdrop-filter:blur(16px)}'
             . '.header-inner,.footer-inner{display:flex;align-items:center;justify-content:space-between;gap:24px;padding-block:18px}.brand{color:var(--text);font:700 20px/1.2 var(--heading-font);text-decoration:none}.site-header nav{display:flex;gap:18px;flex-wrap:wrap}.site-header nav a{text-decoration:none}.section{padding-block:var(--section-gap)}.section-inner{width:min(var(--width),calc(100% - 36px));margin-inline:auto}.width-narrow .section-inner{max-width:720px}.width-content .section-inner{max-width:920px}.width-full .section-inner{width:100%;max-width:none}.tone-surface{background:var(--surface)}.tone-primary{background:var(--primary);color:var(--primary-text)}.tone-primary a{color:var(--primary-text)}.tone-accent{border-block:1px solid var(--accent);background:var(--surface)}.tone-muted{background:color-mix(in srgb,var(--muted) 9%,var(--bg))}'
             . 'h1,h2,h3{font-family:var(--heading-font);line-height:1.1;letter-spacing:-.025em;margin-block:0 .55em}h1{font-size:clamp(42px,8vw,92px);max-width:14ch}h2{font-size:clamp(30px,5vw,56px)}h3{font-size:22px}.lead{font-size:clamp(18px,2.2vw,24px);max-width:62ch;color:var(--muted)}.tone-primary .lead{color:inherit}.eyebrow{color:var(--accent);font-weight:800;letter-spacing:.12em;text-transform:uppercase;font-size:12px}.component-hero .section-inner,.component-media_text .section-inner{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(280px,.95fr);align-items:center;gap:clamp(28px,6vw,80px)}.variant-centered .section-inner{display:block;text-align:center}.variant-centered h1{margin-inline:auto}.hero-media img,.media-text-image img{border-radius:var(--radius);box-shadow:var(--shadow);width:100%;max-height:680px;object-fit:cover}.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}.cols-1{grid-template-columns:1fr}.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}.card-media{aspect-ratio:4/3;display:block;overflow:hidden}.card-media img{height:100%;object-fit:cover;width:100%}.card-body{padding:20px}.card-body h3 a{color:var(--text);text-decoration:none}.card-body p{color:var(--muted)}.prose{font-size:18px}.prose p{margin-block:0 1.3em}.faq details{border-top:1px solid var(--border);padding-block:16px}.faq summary{cursor:pointer;font-weight:700}.button{background:var(--primary);border-radius:999px;color:var(--primary-text)!important;display:inline-block;font-weight:700;padding:11px 20px;text-decoration:none}.tone-primary .button{background:var(--primary-text);color:var(--primary)!important}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}.stat strong,.stat span{display:block}.stat strong{font:700 36px/1.1 var(--heading-font)}.site-footer{border-top:1px solid var(--border);padding-block:28px}.site-footer p{color:var(--muted);margin:4px 0}.empty-state{color:var(--muted)}'
-            . '@media(max-width:800px){.header-inner,.footer-inner{align-items:flex-start;flex-direction:column}.component-hero .section-inner,.component-media_text .section-inner{grid-template-columns:1fr}.cards,.cols-2,.cols-3,.cols-4{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}.show-desktop:not(.show-mobile){display:none}}'
+            . '.extension-slot{align-items:center;display:grid;gap:32px;grid-template-columns:minmax(0,1fr) minmax(260px,.7fr)}.extension-actions{display:flex;flex-wrap:wrap;gap:12px;margin-block-start:24px}.extension-action{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);display:flex;flex-direction:column;padding:14px 18px;text-decoration:none}.extension-action span{color:var(--muted);font-size:12px}.extension-image img{border-radius:var(--radius);box-shadow:var(--shadow);height:auto;width:100%}'
+            . '@media(max-width:800px){.header-inner,.footer-inner{align-items:flex-start;flex-direction:column}.component-hero .section-inner,.component-media_text .section-inner,.extension-slot{grid-template-columns:1fr}.cards,.cols-2,.cols-3,.cols-4{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}.show-desktop:not(.show-mobile){display:none}}'
             . '@media(min-width:801px){.show-mobile:not(.show-desktop){display:none}}';
     }
 

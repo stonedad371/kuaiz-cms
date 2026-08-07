@@ -136,6 +136,16 @@
         "bindings": {"body": "content.body"},
         "options": {},
         "visibility": {"when_empty": "hide", "devices": ["mobile", "tablet", "desktop"]}
+      },
+      {
+        "id": "directory_contact",
+        "component": "extension_slot",
+        "variant": "compact",
+        "width": "narrow",
+        "tone": "background",
+        "bindings": {"phone": "content.phone", "website": "content.website"},
+        "options": {"slot": "kuaiz.directory.detail"},
+        "visibility": {"when_empty": "hide", "devices": ["mobile", "tablet", "desktop"]}
       }
     ],
     "not_found": [

@@ -38,3 +38,5 @@ jobs:
         run: find . -type f -name '*.php' -not -path './var/*' -print0 | xargs -0 -n1 php -l
       - name: Run public smoke test
         run: php tests/smoke.php
+      - name: Rehearse schema upgrade and refusal of newer databases
+        run: php tests/upgrade.php
