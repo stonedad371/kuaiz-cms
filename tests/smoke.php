@@ -102,7 +102,7 @@ try {
     );
     smoke_require($setup['status'] === 303, 'smoke_admin_setup_failed');
     smoke_require(
-        ($setup['headers']['Location'] ?? '') === '/admin/settings?welcome=1',
+        ($setup['headers']['Location'] ?? '') === '/admin/settings/?welcome=1',
         'smoke_onboarding_redirect_failed'
     );
     $cookies = [];
@@ -146,7 +146,7 @@ try {
         $data
     );
     smoke_require(
-        ($settings['headers']['Location'] ?? '') === '/admin/themes?welcome=1',
+        ($settings['headers']['Location'] ?? '') === '/admin/themes/?welcome=1',
         'smoke_theme_onboarding_redirect_failed'
     );
     $themes = KuaizCmsAdminApplication::handle(
@@ -178,7 +178,7 @@ try {
         $data
     );
     smoke_require(
-        ($themeSelection['headers']['Location'] ?? '') === '/admin?onboarding=ready'
+        ($themeSelection['headers']['Location'] ?? '') === '/admin/?onboarding=ready'
             && KuaizCmsThemeRegistry::active($pdo)['theme_id'] === 'kuaiz.studio',
         'smoke_theme_selection_failed'
     );

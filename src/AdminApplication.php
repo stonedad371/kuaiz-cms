@@ -29,6 +29,9 @@ final class KuaizCmsAdminApplication
         if (!is_string($path)) {
             return self::error(400, '请求地址无效。');
         }
+        if ($path !== '/admin') {
+            $path = rtrim($path, '/');
+        }
         if (!in_array($method, ['GET', 'POST'], true)) {
             return self::error(405, '此操作不受支持。', ['Allow' => 'GET, POST']);
         }
@@ -1012,6 +1015,7 @@ final class KuaizCmsAdminApplication
         array $extraHeaders = []
     ): array {
         $nonce = bin2hex(random_bytes(16));
+        $body = self::physicalAdminUrls($body);
         $html = '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
             . '<meta name="viewport" content="width=device-width,initial-scale=1">'
             . '<title>' . self::h($title) . ' · Kuaiz CMS</title><style nonce="' . $nonce . '">'
@@ -1029,12 +1033,29 @@ final class KuaizCmsAdminApplication
         if (!str_starts_with($location, '/admin')) {
             throw new RuntimeException('cms_admin_redirect_invalid');
         }
+        $question = strpos($location, '?');
+        $path = $question === false ? $location : substr($location, 0, $question);
+        $query = $question === false ? '' : substr($location, $question);
+        $location = rtrim($path, '/') . '/' . $query;
         $headers = self::securityHeaders('');
         $headers['Location'] = $location;
         foreach ($extraHeaders as $name => $value) {
             $headers[$name] = $value;
         }
         return ['status' => 303, 'headers' => $headers, 'body' => ''];
+    }
+
+    private static function physicalAdminUrls(string $html): string
+    {
+        $rewritten = preg_replace_callback(
+            '#((?:href|action|src)=")(/admin(?:/[a-z]+)*)(?=[?"])#D',
+            static fn(array $match): string => $match[1] . rtrim($match[2], '/') . '/',
+            $html
+        );
+        if (!is_string($rewritten)) {
+            throw new RuntimeException('cms_admin_url_render_failed');
+        }
+        return $rewritten;
     }
 
     private static function error(int $status, string $message, array $headers = []): array
