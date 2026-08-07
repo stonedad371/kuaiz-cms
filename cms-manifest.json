@@ -1,7 +1,7 @@
 {
   "schema": "kuaiz-cms-distribution/v1",
   "name": "Kuaiz CMS Community",
-  "version": "0.1.1-dev",
+  "version": "0.1.2-dev",
   "runtime_profile": "community-php-sqlite-v1",
   "database": "sqlite",
   "database_schema_version": 5,
@@ -11,11 +11,11 @@
   "required_php_extensions": [
     "pdo_sqlite",
     "fileinfo",
-    "gd",
-    "sodium"
+    "gd"
   ],
   "optional_php_extensions": [
-    "exif"
+    "exif",
+    "sodium"
   ],
   "license_required": false,
   "independent_editing": true,

@@ -37,7 +37,7 @@ try {
     $fail('manifest', $error->getMessage());
 }
 
-$required = ['pdo_sqlite', 'fileinfo', 'gd', 'sodium'];
+$required = ['pdo_sqlite', 'fileinfo', 'gd'];
 $missing = array_values(array_filter(
     $required,
     static fn(string $extension): bool => !extension_loaded($extension)

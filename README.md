@@ -42,7 +42,7 @@
 ## 运行要求
 
 - PHP 8.1 或更高版本；
-- PDO SQLite、Fileinfo、GD（含 WebP）和 Sodium；
+- PDO SQLite、Fileinfo 和 GD（含 WebP）；Sodium 有则用于增强安装检查，没有也能安装；
 - EXIF 可选；
 - 正式网站必须使用 HTTPS，并把数据库和备份放在 Web 根目录之外。
 

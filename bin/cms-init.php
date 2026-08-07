@@ -18,7 +18,7 @@ if (PHP_VERSION_ID < 80100) {
     exit(1);
 }
 $missingExtensions = array_values(array_filter(
-    ['pdo_sqlite', 'fileinfo', 'gd', 'sodium'],
+    ['pdo_sqlite', 'fileinfo', 'gd'],
     static fn(string $extension): bool => !extension_loaded($extension)
 ));
 if ($missingExtensions !== [] || !function_exists('imagewebp')) {
