@@ -102,6 +102,9 @@ final class KuaizCmsAdminApplication
             if ($method === 'POST' && $path === '/admin/settings') {
                 return self::saveSettings($pdo, $post, $session);
             }
+            if ($method === 'POST' && $path === '/admin/themes/activate') {
+                return self::activateTheme($pdo, $post, $session);
+            }
             if ($method === 'GET' && $path === '/admin/content/new') {
                 KuaizCmsAuth::authorize($pdo, $token, ['admin', 'editor']);
                 return self::newContentPage($pdo, $query, $session, $csrfToken);
@@ -129,6 +132,15 @@ final class KuaizCmsAdminApplication
             if ($method === 'GET' && $path === '/admin/settings') {
                 KuaizCmsAuth::authorize($pdo, $token, ['admin']);
                 return self::settingsPage(
+                    $pdo,
+                    $session,
+                    $csrfToken,
+                    self::queryText($query, 'welcome', 1, true) === '1'
+                );
+            }
+            if ($method === 'GET' && $path === '/admin/themes') {
+                KuaizCmsAuth::authorize($pdo, $token, ['admin']);
+                return self::themesPage(
                     $pdo,
                     $session,
                     $csrfToken,
@@ -262,7 +274,8 @@ final class KuaizCmsAdminApplication
             . '<p>草稿修改不会提前出现在网站上，发布后才会替换线上版本。</p>'
             . '<p class="hero-action"><a class="button secondary" href="/admin/media">打开素材库</a> '
             . ($session['user']['role'] === 'admin'
-                ? '<a class="button secondary" href="/admin/settings">网站设置</a>' : '')
+                ? '<a class="button secondary" href="/admin/themes">网站风格</a> '
+                    . '<a class="button secondary" href="/admin/settings">网站设置</a>' : '')
             . '</p></div>'
             . self::userCard($session, $csrfToken) . '</section>' . $onboardingNotice
             . '<section class="panel"><div class="panel-head"><h2>可用内容类型</h2></div><ul class="types">'
@@ -665,7 +678,7 @@ final class KuaizCmsAdminApplication
             ? '<div class="notice"><b>先完成网站的基础设置。</b> 填写网站名称、唯一语言和正式网址；'
                 . '新站会继续禁止搜索引擎收录，等内容准备好后再由你手动开启。</div>'
             : '';
-        $submitLabel = $savedSettings === null ? '保存并进入内容管理' : '保存网站设置';
+        $submitLabel = $savedSettings === null ? '保存并选择网站风格' : '保存网站设置';
         $body = '<section class="hero compact"><div><p class="eyebrow">单站单语言</p><h1>网站设置</h1>'
             . '<p><a href="/admin">← 返回内容列表</a></p></div>'
             . self::userCard($session, $csrfToken) . '</section>' . $onboarding
@@ -702,6 +715,7 @@ final class KuaizCmsAdminApplication
 
     private static function saveSettings(PDO $pdo, array $post, array $session): array
     {
+        $firstSetup = KuaizCmsSiteSettings::get($pdo) === null;
         $cover = self::postText($post, 'cover_media_id', 20, true);
         if ($cover !== '' && (!ctype_digit($cover) || (int)$cover < 1)) {
             throw new RuntimeException('cms_site_cover_invalid');
@@ -722,7 +736,79 @@ final class KuaizCmsAdminApplication
             'contact_summary' => self::postText($post, 'contact_summary', 4000, true),
             'cover_media_id' => $cover === '' ? null : (int)$cover,
         ], 'user:' . $session['user']['id']);
+        return self::redirect($firstSetup ? '/admin/themes?welcome=1' : '/admin');
+    }
+
+    private static function themesPage(
+        PDO $pdo,
+        array $session,
+        string $csrfToken,
+        bool $welcome = false
+    ): array {
+        $cards = '';
+        foreach (KuaizCmsThemeRegistry::themes($pdo) as $theme) {
+            $manifest = $theme['manifest'];
+            $active = $theme['status'] === 'active';
+            $badge = $active ? '<span class="theme-status">当前使用</span>' : '';
+            $action = $active && !$welcome
+                ? '<span class="button secondary disabled">已经启用</span>'
+                : '<form method="post" action="/admin/themes/activate">'
+                    . self::hidden('_csrf', $csrfToken)
+                    . self::hidden('theme_id', $theme['theme_id'])
+                    . self::hidden('version', $theme['version'])
+                    . '<button class="button wide" type="submit">选择这个风格</button></form>';
+            $cards .= '<article class="theme-card">'
+                . '<img class="theme-preview" src="' . self::h(self::themePreview($manifest))
+                . '" alt="' . self::h($theme['name']) . '风格预览">'
+                . '<div class="theme-card-body"><div class="theme-title"><div><h2>'
+                . self::h($theme['name']) . '</h2><small>版本 ' . self::h($theme['version'])
+                . '</small></div>' . $badge . '</div><p>'
+                . self::h($manifest['description']) . '</p>' . $action . '</div></article>';
+        }
+        if ($cards === '') {
+            $cards = '<div class="notice error">当前没有可用的网站风格，请重新运行安装程序。</div>';
+        }
+        $notice = $welcome
+            ? '<div class="notice"><b>基础设置已经保存。</b> 最后选一套网站风格；以后仍可随时更换，内容不会丢失。</div>'
+            : '';
+        $body = '<section class="hero compact"><div><p class="eyebrow">最后一步</p>'
+            . '<h1>选择网站风格</h1><p><a href="/admin">← 返回内容列表</a></p></div>'
+            . self::userCard($session, $csrfToken) . '</section>' . $notice
+            . '<section class="theme-grid" aria-label="已安装的网站风格">' . $cards . '</section>'
+            . '<div class="notice">切换风格只改变网站外观，不会修改文章、图片和 SEO 设置。</div>';
+        return self::page('网站风格', $body);
+    }
+
+    private static function activateTheme(PDO $pdo, array $post, array $session): array
+    {
+        KuaizCmsThemeRegistry::activate(
+            $pdo,
+            self::postText($post, 'theme_id', 80),
+            self::postText($post, 'version', 40),
+            'user:' . $session['user']['id']
+        );
         return self::redirect('/admin?onboarding=ready');
+    }
+
+    private static function themePreview(array $manifest): string
+    {
+        $colors = $manifest['design']['colors'];
+        $rounded = max(2, min(18, (int)$manifest['design']['shape']['radius']));
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="720" height="440" viewBox="0 0 720 440">'
+            . '<rect width="720" height="440" fill="' . $colors['background'] . '"/>'
+            . '<rect width="720" height="62" fill="' . $colors['surface'] . '"/>'
+            . '<rect x="42" y="24" width="108" height="14" rx="7" fill="' . $colors['text'] . '"/>'
+            . '<rect x="545" y="25" width="52" height="11" rx="5" fill="' . $colors['muted'] . '"/>'
+            . '<rect x="611" y="25" width="66" height="11" rx="5" fill="' . $colors['primary'] . '"/>'
+            . '<rect x="65" y="116" width="78" height="11" rx="5" fill="' . $colors['accent'] . '"/>'
+            . '<rect x="65" y="146" width="410" height="30" rx="8" fill="' . $colors['text'] . '"/>'
+            . '<rect x="65" y="188" width="334" height="13" rx="6" fill="' . $colors['muted'] . '"/>'
+            . '<rect x="65" y="215" width="128" height="42" rx="' . $rounded . '" fill="' . $colors['primary'] . '"/>'
+            . '<rect x="65" y="310" width="180" height="94" rx="' . $rounded . '" fill="' . $colors['surface'] . '" stroke="' . $colors['border'] . '"/>'
+            . '<rect x="270" y="310" width="180" height="94" rx="' . $rounded . '" fill="' . $colors['surface'] . '" stroke="' . $colors['border'] . '"/>'
+            . '<rect x="475" y="310" width="180" height="94" rx="' . $rounded . '" fill="' . $colors['surface'] . '" stroke="' . $colors['border'] . '"/>'
+            . '</svg>';
+        return 'data:image/svg+xml;base64,' . base64_encode($svg);
     }
 
     private static function setupPage(string $error = '', int $status = 200): array
@@ -884,7 +970,7 @@ final class KuaizCmsAdminApplication
             '/admin/content/save', '/admin/content/state',
             '/admin/media/upload', '/admin/media/update', '/admin/media/state'
                 => ['admin', 'editor'],
-            '/admin/settings' => ['admin'],
+            '/admin/settings', '/admin/themes/activate' => ['admin'],
             default => throw new RuntimeException('cms_auth_role_forbidden'),
         };
     }
@@ -1094,6 +1180,9 @@ final class KuaizCmsAdminApplication
             'cms_site_base_url_invalid' => '正式网址必须是 HTTPS 根域名，例如 https://example.com。',
             'cms_site_cover_invalid' => '选择的首页图片不存在或已经归档。',
             'cms_site_indexing_invalid' => '搜索引擎收录设置不正确。',
+            'theme_not_installed' => '选择的网站风格不存在，请刷新页面后重试。',
+            'theme_id_invalid', 'theme_version_invalid' => '网站风格信息不正确，请刷新页面后重试。',
+            'theme_extension_slot_unavailable' => '这个风格需要尚未安装的扩展，暂时不能启用。',
             default => '输入内容有误或当前操作无法完成。',
         };
     }
@@ -1134,7 +1223,7 @@ final class KuaizCmsAdminApplication
     private static function styles(): string
     {
         return <<<'CSS'
-:root{color-scheme:light;--bg:#f4f1e9;--surface:#fffdf8;--text:#17231d;--muted:#617067;--brand:#176146;--line:#dcd8ce;--danger:#9f352d}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}a{color:var(--brand);text-decoration:none}a:hover{text-decoration:underline}main{width:min(1160px,calc(100% - 32px));margin:32px auto 64px}.hero{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin:0 0 24px}.hero.compact{align-items:center}.hero h1,.auth h1{font-size:clamp(30px,5vw,52px);line-height:1.08;margin:4px 0 12px;letter-spacing:-.035em}.hero p{margin:0;color:var(--muted)}.hero-action{margin-top:16px!important}.eyebrow{color:var(--brand)!important;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.panel,.auth{background:var(--surface);border:1px solid var(--line);border-radius:22px;box-shadow:0 18px 50px rgba(23,35,29,.07)}.panel{padding:24px;margin:18px 0}.auth{width:min(540px,100%);margin:8vh auto;padding:clamp(24px,5vw,48px)}.auth>p{color:var(--muted)}.panel-head,.user,.types li,.revision header,.form-actions,.state-actions{display:flex;align-items:center;justify-content:space-between;gap:16px}.panel h2{font-size:21px;margin:0}.user{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:10px 14px;min-width:210px}.user strong,.user small{display:block}.user small,small{color:var(--muted)}.types{list-style:none;margin:16px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.types li{border:1px solid var(--line);border-radius:14px;padding:12px}.button{appearance:none;border:0;border-radius:11px;background:var(--brand);color:white;cursor:pointer;display:inline-block;font:inherit;font-weight:700;padding:10px 16px;text-align:center}.button:hover{text-decoration:none;filter:brightness(.95)}.button.secondary{background:#e7efe9;color:var(--brand)}.button.wide{width:100%;margin-top:8px}.text-button{appearance:none;border:0;background:none;color:var(--brand);cursor:pointer;font:inherit;padding:0}.filters{display:flex;flex-wrap:wrap;gap:12px}.table-wrap{overflow:auto;margin-top:16px}table{border-collapse:collapse;width:100%;min-width:700px}th,td{border-top:1px solid var(--line);padding:13px 10px;text-align:left;vertical-align:middle}th{color:var(--muted);font-size:12px;text-transform:uppercase}td small{display:block}.actions{white-space:nowrap}.status,.flag{border-radius:999px;background:#edf3ef;color:var(--brand);display:inline-block;font-size:12px;padding:2px 8px}.flag{background:#fff0d7;color:#8b5410;margin-left:6px}.empty{color:var(--muted);padding:22px!important;text-align:center!important}form label{display:block;font-weight:700;margin:18px 0}input,textarea,select{background:white;border:1px solid #bfc8c1;border-radius:11px;color:var(--text);display:block;font:inherit;margin-top:7px;padding:11px 12px;width:100%}input:focus,textarea:focus,select:focus{border-color:var(--brand);outline:3px solid rgba(23,97,70,.12)}label small{display:block;font-weight:400;margin-top:5px}.check{display:grid!important;grid-template-columns:auto 1fr;column-gap:10px;align-items:center}.check input{margin:0;width:auto}.check small{grid-column:2}.required{color:var(--danger);font-size:12px}.editor{max-width:820px}.form-actions{justify-content:flex-end;margin-top:24px}.state-actions{border-top:1px solid var(--line);justify-content:flex-start;margin-top:28px;padding-top:18px}.notice{background:#edf3ef;border-radius:12px;color:var(--brand);margin:18px 0;padding:12px 14px}.notice.error{background:#fff0ed;color:var(--danger)}.timeline{display:grid;gap:16px}.revision{border:1px solid var(--line);border-radius:14px;padding:16px}.revision header span{color:var(--brand);font-size:12px}.revision pre{background:#18231e;color:#e9f0eb;border-radius:10px;max-height:340px;overflow:auto;padding:14px;white-space:pre-wrap}.media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;margin-top:18px}.media-card{border:1px solid var(--line);border-radius:16px;overflow:hidden}.media-card>a{background:#e9ede9;display:block;aspect-ratio:4/3}.media-card img{height:100%;object-fit:cover;width:100%}.media-body{padding:14px}.media-body>strong,.media-body>small{display:block}.media-meta{border-top:1px solid var(--line);margin-top:12px;padding-top:1px}.media-meta label{font-size:13px;margin:10px 0}.media-meta input,.media-meta textarea{padding:8px 9px}.media-state{margin-top:12px}.upload form{max-width:680px}footer{color:var(--muted);font-size:12px;padding:0 16px 32px;text-align:center}@media(max-width:720px){main{margin-top:20px}.hero{display:block}.user{margin-top:18px}.panel{padding:18px}.panel-head{align-items:flex-start;display:block}.filters{margin-top:12px}.form-actions{align-items:stretch;flex-direction:column}.form-actions .button{width:100%}}
+:root{color-scheme:light;--bg:#f4f1e9;--surface:#fffdf8;--text:#17231d;--muted:#617067;--brand:#176146;--line:#dcd8ce;--danger:#9f352d}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}a{color:var(--brand);text-decoration:none}a:hover{text-decoration:underline}main{width:min(1160px,calc(100% - 32px));margin:32px auto 64px}.hero{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin:0 0 24px}.hero.compact{align-items:center}.hero h1,.auth h1{font-size:clamp(30px,5vw,52px);line-height:1.08;margin:4px 0 12px;letter-spacing:-.035em}.hero p{margin:0;color:var(--muted)}.hero-action{margin-top:16px!important}.eyebrow{color:var(--brand)!important;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.panel,.auth{background:var(--surface);border:1px solid var(--line);border-radius:22px;box-shadow:0 18px 50px rgba(23,35,29,.07)}.panel{padding:24px;margin:18px 0}.auth{width:min(540px,100%);margin:8vh auto;padding:clamp(24px,5vw,48px)}.auth>p{color:var(--muted)}.panel-head,.user,.types li,.revision header,.form-actions,.state-actions{display:flex;align-items:center;justify-content:space-between;gap:16px}.panel h2{font-size:21px;margin:0}.user{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:10px 14px;min-width:210px}.user strong,.user small{display:block}.user small,small{color:var(--muted)}.types{list-style:none;margin:16px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.types li{border:1px solid var(--line);border-radius:14px;padding:12px}.button{appearance:none;border:0;border-radius:11px;background:var(--brand);color:white;cursor:pointer;display:inline-block;font:inherit;font-weight:700;padding:10px 16px;text-align:center}.button:hover{text-decoration:none;filter:brightness(.95)}.button.secondary{background:#e7efe9;color:var(--brand)}.button.wide{width:100%;margin-top:8px}.button.disabled{cursor:default;display:block;opacity:.72;text-align:center;width:100%}.text-button{appearance:none;border:0;background:none;color:var(--brand);cursor:pointer;font:inherit;padding:0}.filters{display:flex;flex-wrap:wrap;gap:12px}.table-wrap{overflow:auto;margin-top:16px}table{border-collapse:collapse;width:100%;min-width:700px}th,td{border-top:1px solid var(--line);padding:13px 10px;text-align:left;vertical-align:middle}th{color:var(--muted);font-size:12px;text-transform:uppercase}td small{display:block}.actions{white-space:nowrap}.status,.flag{border-radius:999px;background:#edf3ef;color:var(--brand);display:inline-block;font-size:12px;padding:2px 8px}.flag{background:#fff0d7;color:#8b5410;margin-left:6px}.empty{color:var(--muted);padding:22px!important;text-align:center!important}form label{display:block;font-weight:700;margin:18px 0}input,textarea,select{background:white;border:1px solid #bfc8c1;border-radius:11px;color:var(--text);display:block;font:inherit;margin-top:7px;padding:11px 12px;width:100%}input:focus,textarea:focus,select:focus{border-color:var(--brand);outline:3px solid rgba(23,97,70,.12)}label small{display:block;font-weight:400;margin-top:5px}.check{display:grid!important;grid-template-columns:auto 1fr;column-gap:10px;align-items:center}.check input{margin:0;width:auto}.check small{grid-column:2}.required{color:var(--danger);font-size:12px}.editor{max-width:820px}.form-actions{justify-content:flex-end;margin-top:24px}.state-actions{border-top:1px solid var(--line);justify-content:flex-start;margin-top:28px;padding-top:18px}.notice{background:#edf3ef;border-radius:12px;color:var(--brand);margin:18px 0;padding:12px 14px}.notice.error{background:#fff0ed;color:var(--danger)}.timeline{display:grid;gap:16px}.revision{border:1px solid var(--line);border-radius:14px;padding:16px}.revision header span{color:var(--brand);font-size:12px}.revision pre{background:#18231e;color:#e9f0eb;border-radius:10px;max-height:340px;overflow:auto;padding:14px;white-space:pre-wrap}.media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;margin-top:18px}.media-card{border:1px solid var(--line);border-radius:16px;overflow:hidden}.media-card>a{background:#e9ede9;display:block;aspect-ratio:4/3}.media-card img{height:100%;object-fit:cover;width:100%}.media-body{padding:14px}.media-body>strong,.media-body>small{display:block}.media-meta{border-top:1px solid var(--line);margin-top:12px;padding-top:1px}.media-meta label{font-size:13px;margin:10px 0}.media-meta input,.media-meta textarea{padding:8px 9px}.media-state{margin-top:12px}.upload form{max-width:680px}.theme-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}.theme-card{background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:0 18px 50px rgba(23,35,29,.07);overflow:hidden}.theme-preview{aspect-ratio:18/11;background:#e9ede9;border-bottom:1px solid var(--line);display:block;object-fit:cover;width:100%}.theme-card-body{padding:20px}.theme-card-body>p{color:var(--muted);min-height:3.3em}.theme-card-body form{margin:0}.theme-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.theme-title h2{margin:0}.theme-status{background:#e1f2e8;border-radius:999px;color:var(--brand);font-size:12px;font-weight:800;padding:4px 9px;white-space:nowrap}footer{color:var(--muted);font-size:12px;padding:0 16px 32px;text-align:center}@media(max-width:720px){main{margin-top:20px}.hero{display:block}.user{margin-top:18px}.panel{padding:18px}.panel-head{align-items:flex-start;display:block}.filters{margin-top:12px}.form-actions{align-items:stretch;flex-direction:column}.form-actions .button{width:100%}.theme-grid{grid-template-columns:1fr}}
 CSS;
     }
 }

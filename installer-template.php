@@ -308,6 +308,7 @@ function kuaiz_cms_install_payload(array $release): array
         'src/ThemeManifest.php', 'src/ThemeRegistry.php', 'src/SiteSettings.php', 'public/index.php',
         'public/.htaccess', 'public/.user.ini',
         'extensions/kuaiz-directory/extension.json', 'themes/kuaiz-studio/theme.json',
+        'themes/kuaiz-default/theme.json',
     ];
     foreach ($required as $path) {
         if (!isset($seen[$path])) {
@@ -503,6 +504,16 @@ function kuaiz_cms_install_initialize(
         $pdo,
         $theme,
         $root . '/themes/kuaiz-studio',
+        $root . '/var',
+        'system:installer',
+        '0.1.0',
+        false
+    );
+    $defaultTheme = (string)file_get_contents($root . '/themes/kuaiz-default/theme.json');
+    KuaizCmsThemeRegistry::install(
+        $pdo,
+        $defaultTheme,
+        $root . '/themes/kuaiz-default',
         $root . '/var',
         'system:installer',
         '0.1.0',

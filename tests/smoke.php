@@ -55,6 +55,7 @@ try {
         $root . '/extensions/kuaiz-directory/extension.json'
     );
     $theme = (string)file_get_contents($root . '/themes/kuaiz-studio/theme.json');
+    $defaultTheme = (string)file_get_contents($root . '/themes/kuaiz-default/theme.json');
     KuaizCmsExtensionRegistry::installDeclarative(
         $pdo,
         $extension,
@@ -65,6 +66,15 @@ try {
         $pdo,
         $theme,
         $root . '/themes/kuaiz-studio',
+        $data,
+        'test:smoke',
+        '0.1.0',
+        false
+    );
+    KuaizCmsThemeRegistry::install(
+        $pdo,
+        $defaultTheme,
+        $root . '/themes/kuaiz-default',
         $data,
         'test:smoke',
         '0.1.0',
@@ -110,21 +120,66 @@ try {
     );
     smoke_require($onboarding['status'] === 200, 'smoke_onboarding_page_failed');
     smoke_require(
-        str_contains($onboarding['body'], '保存并进入内容管理'),
+        str_contains($onboarding['body'], '保存并选择网站风格'),
         'smoke_onboarding_action_failed'
     );
-    KuaizCmsSiteSettings::save($pdo, [
-        'site_name' => 'Kuaiz CMS Smoke Test',
-        'tagline' => 'Independent publishing',
-        'description' => 'A disposable site used by the public repository smoke test.',
-        'language' => 'en-US',
-        'direction' => 'ltr',
-        'base_url' => 'https://cms-smoke.example.com',
-        'search_indexing' => false,
-        'contact_title' => '',
-        'contact_summary' => '',
-        'cover_media_id' => null,
-    ], 'test:smoke');
+    $settings = KuaizCmsAdminApplication::handle(
+        $pdo,
+        ['REQUEST_METHOD' => 'POST', 'REQUEST_URI' => '/admin/settings'],
+        [],
+        [
+            '_csrf' => $cookies['__Host-kuaiz_cms_csrf'],
+            'site_name' => 'Kuaiz CMS Smoke Test',
+            'tagline' => 'Independent publishing',
+            'description' => 'A disposable site used by the public repository smoke test.',
+            'language' => 'en-US',
+            'direction' => 'ltr',
+            'base_url' => 'https://cms-smoke.example.com',
+            'contact_title' => '',
+            'contact_summary' => '',
+            'cover_media_id' => '',
+        ],
+        $cookies,
+        [],
+        $data
+    );
+    smoke_require(
+        ($settings['headers']['Location'] ?? '') === '/admin/themes?welcome=1',
+        'smoke_theme_onboarding_redirect_failed'
+    );
+    $themes = KuaizCmsAdminApplication::handle(
+        $pdo,
+        ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/admin/themes?welcome=1'],
+        ['welcome' => '1'],
+        [],
+        $cookies,
+        [],
+        $data
+    );
+    smoke_require(
+        str_contains($themes['body'], '清简商务')
+            && str_contains($themes['body'], 'Studio')
+            && str_contains($themes['body'], '选择这个风格'),
+        'smoke_theme_selection_page_failed'
+    );
+    $themeSelection = KuaizCmsAdminApplication::handle(
+        $pdo,
+        ['REQUEST_METHOD' => 'POST', 'REQUEST_URI' => '/admin/themes/activate'],
+        [],
+        [
+            '_csrf' => $cookies['__Host-kuaiz_cms_csrf'],
+            'theme_id' => 'kuaiz.studio',
+            'version' => '1.0.0',
+        ],
+        $cookies,
+        [],
+        $data
+    );
+    smoke_require(
+        ($themeSelection['headers']['Location'] ?? '') === '/admin?onboarding=ready'
+            && KuaizCmsThemeRegistry::active($pdo)['theme_id'] === 'kuaiz.studio',
+        'smoke_theme_selection_failed'
+    );
     KuaizCmsContentRepository::save(
         $pdo,
         'kuaiz.directory',

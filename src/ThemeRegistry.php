@@ -202,18 +202,21 @@ SQL)->execute([
     public static function themes(PDO $pdo): array
     {
         $rows = $pdo->query(<<<'SQL'
-SELECT theme_id,version,name,status,manifest_sha256,installed_at,updated_at
+SELECT theme_id,version,name,status,manifest_json,manifest_sha256,installed_at,updated_at
 FROM cms_themes ORDER BY theme_id ASC,installed_at DESC
 SQL)->fetchAll();
-        return array_map(static fn(array $row): array => [
-            'theme_id' => (string)$row['theme_id'],
-            'version' => (string)$row['version'],
-            'name' => (string)$row['name'],
-            'status' => (string)$row['status'],
-            'manifest_sha256' => (string)$row['manifest_sha256'],
-            'installed_at' => (int)$row['installed_at'],
-            'updated_at' => (int)$row['updated_at'],
-        ], $rows);
+        return array_map(static function (array $row): array {
+            return [
+                'theme_id' => (string)$row['theme_id'],
+                'version' => (string)$row['version'],
+                'name' => (string)$row['name'],
+                'status' => (string)$row['status'],
+                'manifest_sha256' => (string)$row['manifest_sha256'],
+                'manifest' => self::verifiedManifest($row),
+                'installed_at' => (int)$row['installed_at'],
+                'updated_at' => (int)$row['updated_at'],
+            ];
+        }, $rows);
     }
 
     public static function asset(

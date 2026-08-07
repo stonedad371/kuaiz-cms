@@ -1,0 +1,159 @@
+{
+  "schema": "kuaiz-theme/v2",
+  "id": "kuaiz.default",
+  "name": "清简商务",
+  "version": "1.0.0",
+  "description": "适合企业、服务机构和个人品牌的清爽通用风格，安装后即可使用。",
+  "author": {
+    "name": "Kuaiz CMS",
+    "url": "https://cms.kuaiz.net"
+  },
+  "compatibility": {
+    "cms": ">=0.1.0 <1.0.0",
+    "site_language_mode": "single",
+    "directions": ["ltr", "rtl"]
+  },
+  "design": {
+    "colors": {
+      "background": "#f7f9fc",
+      "surface": "#ffffff",
+      "text": "#14213d",
+      "muted": "#526078",
+      "primary": "#2255cc",
+      "primary_text": "#ffffff",
+      "accent": "#9c3d10",
+      "border": "#d7dfec"
+    },
+    "typography": {
+      "body": "system",
+      "heading": "sans",
+      "scale": "balanced"
+    },
+    "layout": {
+      "max_width": 1120,
+      "density": "comfortable",
+      "header": "minimal",
+      "footer": "split"
+    },
+    "shape": {
+      "radius": 12,
+      "shadow": "soft"
+    }
+  },
+  "templates": {
+    "home": [
+      {
+        "id": "welcome",
+        "component": "hero",
+        "variant": "centered",
+        "width": "content",
+        "tone": "background",
+        "bindings": {
+          "eyebrow": "site.tagline",
+          "title": "site.name",
+          "summary": "site.description",
+          "image": "site.cover"
+        },
+        "options": {"primary_action": "contact"},
+        "visibility": {"when_empty": "show", "devices": ["mobile", "tablet", "desktop"]}
+      },
+      {
+        "id": "services",
+        "component": "card_grid",
+        "variant": "compact",
+        "width": "wide",
+        "tone": "surface",
+        "bindings": {
+          "title": "page.featured_title",
+          "items": "collection.featured"
+        },
+        "options": {"columns": 3},
+        "visibility": {"when_empty": "hide", "devices": ["mobile", "tablet", "desktop"]}
+      },
+      {
+        "id": "answers",
+        "component": "faq",
+        "variant": "minimal",
+        "width": "content",
+        "tone": "background",
+        "bindings": {"items": "collection.faq"},
+        "options": {},
+        "visibility": {"when_empty": "hide", "devices": ["mobile", "tablet", "desktop"]}
+      },
+      {
+        "id": "next_step",
+        "component": "cta",
+        "variant": "centered",
+        "width": "wide",
+        "tone": "primary",
+        "bindings": {
+          "title": "site.contact_title",
+          "summary": "site.contact_summary"
+        },
+        "options": {"action": "contact"},
+        "visibility": {"when_empty": "show", "devices": ["mobile", "tablet", "desktop"]}
+      }
+    ],
+    "content_list": [
+      {
+        "id": "list_intro",
+        "component": "hero",
+        "variant": "minimal",
+        "width": "content",
+        "tone": "background",
+        "bindings": {"title": "page.title", "summary": "page.description"},
+        "options": {},
+        "visibility": {"when_empty": "show", "devices": ["mobile", "tablet", "desktop"]}
+      },
+      {
+        "id": "list_content",
+        "component": "card_grid",
+        "variant": "compact",
+        "width": "wide",
+        "tone": "surface",
+        "bindings": {"items": "collection.current"},
+        "options": {"columns": 2},
+        "visibility": {"when_empty": "show", "devices": ["mobile", "tablet", "desktop"]}
+      }
+    ],
+    "content_detail": [
+      {
+        "id": "article_intro",
+        "component": "hero",
+        "variant": "minimal",
+        "width": "content",
+        "tone": "background",
+        "bindings": {"title": "content.title", "summary": "content.summary", "image": "content.cover"},
+        "options": {},
+        "visibility": {"when_empty": "show", "devices": ["mobile", "tablet", "desktop"]}
+      },
+      {
+        "id": "article_body",
+        "component": "rich_text",
+        "variant": "default",
+        "width": "narrow",
+        "tone": "surface",
+        "bindings": {"body": "content.body"},
+        "options": {},
+        "visibility": {"when_empty": "hide", "devices": ["mobile", "tablet", "desktop"]}
+      }
+    ],
+    "not_found": [
+      {
+        "id": "missing",
+        "component": "hero",
+        "variant": "centered",
+        "width": "content",
+        "tone": "background",
+        "bindings": {"title": "page.title", "summary": "page.description"},
+        "options": {"primary_action": "home"},
+        "visibility": {"when_empty": "show", "devices": ["mobile", "tablet", "desktop"]}
+      }
+    ]
+  },
+  "assets": [],
+  "preview": {
+    "required_seeds": ["short", "long", "complex", "empty", "rtl"],
+    "viewports": ["mobile", "desktop", "wide"]
+  }
+}

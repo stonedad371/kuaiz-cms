@@ -87,8 +87,14 @@ final class KuaizCmsThemeRenderer
         foreach ($section['bindings'] as $key => $binding) {
             $data[$key] = self::resolve($binding, $settings, $context);
         }
-        if ($section['visibility']['when_empty'] === 'hide' && self::emptyData($data)) {
-            return '';
+        if ($section['visibility']['when_empty'] === 'hide') {
+            if (self::emptyData($data)) {
+                return '';
+            }
+            if ($section['component'] === 'card_grid'
+                && (!isset($data['items']) || !is_array($data['items']) || $data['items'] === [])) {
+                return '';
+            }
         }
         $classes = 'section component-' . $section['component']
             . ' variant-' . $section['variant']
@@ -276,8 +282,13 @@ final class KuaizCmsThemeRenderer
         if (!is_array($source)) {
             return null;
         }
-        if ($scope === 'site' && $key === 'cover') {
-            return $settings['cover_media_id'];
+        if ($scope === 'site') {
+            if ($key === 'name') {
+                return $settings['site_name'];
+            }
+            if ($key === 'cover') {
+                return $settings['cover_media_id'];
+            }
         }
         return $source[$key] ?? null;
     }

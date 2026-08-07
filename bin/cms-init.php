@@ -51,8 +51,9 @@ try {
     $extension = file_get_contents(
         dirname(__DIR__) . '/extensions/kuaiz-directory/extension.json'
     );
-    $theme = file_get_contents(dirname(__DIR__) . '/themes/kuaiz-studio/theme.json');
-    if (!is_string($extension) || !is_string($theme)) {
+    $studioTheme = file_get_contents(dirname(__DIR__) . '/themes/kuaiz-studio/theme.json');
+    $defaultTheme = file_get_contents(dirname(__DIR__) . '/themes/kuaiz-default/theme.json');
+    if (!is_string($extension) || !is_string($studioTheme) || !is_string($defaultTheme)) {
         throw new RuntimeException('cms_bundled_assets_unreadable');
     }
     KuaizCmsExtensionRegistry::installDeclarative(
@@ -63,8 +64,17 @@ try {
     );
     KuaizCmsThemeRegistry::install(
         $pdo,
-        $theme,
+        $studioTheme,
         dirname(__DIR__) . '/themes/kuaiz-studio',
+        $dataDirectory,
+        'system:cli',
+        '0.1.0',
+        false
+    );
+    KuaizCmsThemeRegistry::install(
+        $pdo,
+        $defaultTheme,
+        dirname(__DIR__) . '/themes/kuaiz-default',
         $dataDirectory,
         'system:cli',
         '0.1.0',

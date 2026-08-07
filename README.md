@@ -24,7 +24,7 @@ restricted Extension SDK. The current branch is a developer preview, not a suppo
 - 结构化内容、不可变修订、发布、下线、归档和历史恢复；
 - 图片重新编码、缩略图、引用关系和本地媒体库；
 - 单站单语言设置、Canonical、结构化数据、`robots.txt` 和站点地图；
-- Theme SDK v2、参考主题和长数据、复杂状态、空数据、RTL 验收种子；
+- Theme SDK v2、可直接选择的“清简商务”默认主题、Studio 参考主题，以及长数据、复杂状态、空数据、RTL 验收种子；
 - Extension SDK v1 与不执行 PHP 的参考内容目录扩展；
 - 带 SHA-256 清单的备份恢复、维护锁和数据库升级失败回滚。
 
@@ -44,9 +44,11 @@ php bin/cms-init.php
 php -S 127.0.0.1:8080 -t public public/index.php
 ```
 
-初始化命令会创建本地数据库，安装参考主题和参考目录扩展，并显示一次性后台启用码。打开
+初始化命令会创建本地数据库，安装两套可选主题和参考目录扩展，并显示一次性后台启用码。打开
 `http://127.0.0.1:8080/admin` 创建首个管理员，然后进入“网站设置”填写网站名称、唯一语言和
-正式 HTTPS 网址。新网站默认禁止搜索引擎收录，内容准备好以后再手动开启。
+正式 HTTPS 网址，再选择网站风格。新网站默认使用“清简商务”，同时可以切换到 Studio；以后
+在后台更换风格不会改动文章、图片和 SEO 设置。新网站默认禁止搜索引擎收录，内容准备好以后
+再手动开启。
 
 默认数据目录是仓库内的 `var/`，可以通过环境变量放到其他私有位置：
 
@@ -83,6 +85,8 @@ php bin/cms-restore.php /absolute/path/to/backup-directory --yes
 
 - [`contracts/theme-manifest.schema.json`](contracts/theme-manifest.schema.json) 定义 AI 和开发者
   可生成的 Theme v2 组件树；
+- [`themes/kuaiz-default/theme.json`](themes/kuaiz-default/theme.json) 是安装后即可使用的通用
+  “清简商务”风格；
 - [`themes/kuaiz-studio/theme.json`](themes/kuaiz-studio/theme.json) 是不执行代码的参考主题；
 - [`contracts/extension-manifest.schema.json`](contracts/extension-manifest.schema.json) 定义扩展
   权限、路由、事件、数据和网络边界；
