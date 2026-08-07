@@ -158,7 +158,7 @@ SQL)->execute([
     {
         $value = self::text($value, 2048, 'cms_site_base_url_invalid');
         $parts = parse_url($value);
-        if (!is_array($parts) || ($parts['scheme'] ?? null) !== 'https'
+        if (!is_array($parts) || !in_array(($parts['scheme'] ?? null), ['http', 'https'], true)
             || !isset($parts['host']) || $parts['host'] === ''
             || isset($parts['user']) || isset($parts['pass'])
             || isset($parts['query']) || isset($parts['fragment'])
@@ -175,7 +175,7 @@ SQL)->execute([
             throw new RuntimeException('cms_site_base_url_invalid');
         }
         $port = isset($parts['port']) ? ':' . (int)$parts['port'] : '';
-        return 'https://' . $host . $port;
+        return strtolower((string)$parts['scheme']) . '://' . $host . $port;
     }
 
     private static function exactKeys(array $input, array $expected): void

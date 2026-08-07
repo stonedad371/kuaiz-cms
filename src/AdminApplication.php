@@ -9,6 +9,10 @@ final class KuaizCmsAdminApplication
     private const LOGIN_CSRF_COOKIE = '__Host-kuaiz_cms_login_csrf';
     private const MAX_FORM_BYTES = 262144;
     private const MAX_UPLOAD_REQUEST_BYTES = 13631488;
+    private static bool $secureCookies = true;
+    private static string $sessionCookie = self::SESSION_COOKIE;
+    private static string $csrfCookie = self::CSRF_COOKIE;
+    private static string $loginCsrfCookie = self::LOGIN_CSRF_COOKIE;
 
     public static function handle(
         PDO $pdo,
@@ -19,6 +23,7 @@ final class KuaizCmsAdminApplication
         array $files = [],
         ?string $storageRoot = null
     ): array {
+        self::configureCookies($server);
         $method = strtoupper((string)($server['REQUEST_METHOD'] ?? 'GET'));
         $path = parse_url((string)($server['REQUEST_URI'] ?? '/admin'), PHP_URL_PATH);
         if (!is_string($path)) {
@@ -52,8 +57,8 @@ final class KuaizCmsAdminApplication
             return self::loginPage();
         }
 
-        $token = self::cookie($cookies, self::SESSION_COOKIE);
-        $csrfToken = self::cookie($cookies, self::CSRF_COOKIE);
+        $token = self::cookie($cookies, self::$sessionCookie);
+        $csrfToken = self::cookie($cookies, self::$csrfCookie);
         $session = $token === null ? null : KuaizCmsAuth::session($pdo, $token);
         if ($session === null || $csrfToken === null) {
             return self::loginPage('请先登录。', 401, self::expiredCookies());
@@ -197,7 +202,7 @@ final class KuaizCmsAdminApplication
     ): array
     {
         try {
-            $cookieToken = self::cookie($cookies, self::LOGIN_CSRF_COOKIE);
+            $cookieToken = self::cookie($cookies, self::$loginCsrfCookie);
             $submittedToken = self::postText($post, '_login_csrf', 64);
             if ($cookieToken === null || !hash_equals($cookieToken, $submittedToken)) {
                 throw new RuntimeException('cms_auth_login_csrf_invalid');
@@ -699,7 +704,7 @@ final class KuaizCmsAdminApplication
             . '<option value="rtl"' . ($settings['direction'] === 'rtl' ? ' selected' : '')
             . '>从右到左（阿拉伯语、希伯来语等）</option></select></label>'
             . '<label>正式网址 <span class="required">必填</span><input type="url" name="base_url" maxlength="2048" placeholder="https://example.com" value="'
-            . self::h($settings['base_url']) . '" required><small>用于 canonical、站点地图和结构化数据，只允许 HTTPS 根域名。</small></label>'
+            . self::h($settings['base_url']) . '" required><small>用于搜索收录和网站地图；可以使用 HTTP，有条件时建议升级为 HTTPS。</small></label>'
             . '<label>首页图片<select name="cover_media_id">' . $coverOptions
             . '</select><small><a href="/admin/media">前往素材库上传图片</a></small></label>'
             . '<label>联系标题<input name="contact_title" maxlength="160" value="'
@@ -839,7 +844,7 @@ final class KuaizCmsAdminApplication
         if (!is_array($cookieHeaders)) {
             $cookieHeaders = [$cookieHeaders];
         }
-        $cookieHeaders[] = self::cookieHeader(self::LOGIN_CSRF_COOKIE, $loginCsrf, 900);
+        $cookieHeaders[] = self::cookieHeader(self::$loginCsrfCookie, $loginCsrf, 900);
         $extraHeaders['Set-Cookie'] = $cookieHeaders;
         $notice = $noticeText === '' ? '' : '<div class="notice">' . self::h($noticeText) . '</div>';
         $body = '<section class="auth"><p class="eyebrow">Kuaiz CMS Community</p><h1>登录网站后台</h1>'
@@ -1054,24 +1059,41 @@ final class KuaizCmsAdminApplication
     private static function loginCookies(array $login): array
     {
         return ['Set-Cookie' => [
-            self::cookieHeader(self::SESSION_COOKIE, (string)$login['token'], 43200),
-            self::cookieHeader(self::CSRF_COOKIE, (string)$login['csrf_token'], 43200),
-            self::cookieHeader(self::LOGIN_CSRF_COOKIE, '', 0),
+            self::cookieHeader(self::$sessionCookie, (string)$login['token'], 43200),
+            self::cookieHeader(self::$csrfCookie, (string)$login['csrf_token'], 43200),
+            self::cookieHeader(self::$loginCsrfCookie, '', 0),
         ]];
     }
 
     private static function expiredCookies(): array
     {
         return ['Set-Cookie' => [
-            self::cookieHeader(self::SESSION_COOKIE, '', 0),
-            self::cookieHeader(self::CSRF_COOKIE, '', 0),
+            self::cookieHeader(self::$sessionCookie, '', 0),
+            self::cookieHeader(self::$csrfCookie, '', 0),
         ]];
     }
 
     private static function cookieHeader(string $name, string $value, int $maxAge): string
     {
         return $name . '=' . $value . '; Path=/; Max-Age=' . $maxAge
-            . '; Secure; HttpOnly; SameSite=Strict';
+            . (self::$secureCookies ? '; Secure' : '') . '; HttpOnly; SameSite=Strict';
+    }
+
+    private static function configureCookies(array $server): void
+    {
+        $direct = strtolower((string)($server['HTTPS'] ?? ''));
+        $forwarded = strtolower(trim(explode(
+            ',',
+            (string)($server['HTTP_X_FORWARDED_PROTO'] ?? '')
+        )[0]));
+        $port = (string)($server['SERVER_PORT'] ?? '');
+        self::$secureCookies = ($direct !== '' && $direct !== 'off')
+            || $forwarded === 'https'
+            || ($direct === '' && $forwarded === '' && $port !== '80');
+        $prefix = self::$secureCookies ? '__Host-' : '';
+        self::$sessionCookie = $prefix . 'kuaiz_cms_session';
+        self::$csrfCookie = $prefix . 'kuaiz_cms_csrf';
+        self::$loginCsrfCookie = $prefix . 'kuaiz_cms_login_csrf';
     }
 
     private static function cookie(array $cookies, string $key): ?string
@@ -1187,7 +1209,7 @@ final class KuaizCmsAdminApplication
             'cms_site_description_invalid' => '请完整填写网站名称和网站介绍。',
             'cms_site_language_invalid' => '网站语言格式不正确，例如 zh-Hans-CN、en-US 或 ar-SA。',
             'cms_site_direction_invalid' => '文字方向设置不正确。',
-            'cms_site_base_url_invalid' => '正式网址必须是 HTTPS 根域名，例如 https://example.com。',
+            'cms_site_base_url_invalid' => '正式网址必须是 HTTP 或 HTTPS 根域名，例如 https://example.com。',
             'cms_site_cover_invalid' => '选择的首页图片不存在或已经归档。',
             'cms_site_indexing_invalid' => '搜索引擎收录设置不正确。',
             'theme_not_installed' => '选择的网站风格不存在，请刷新页面后重试。',
