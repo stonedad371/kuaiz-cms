@@ -1,0 +1,69 @@
+{
+  "schema": "kuaiz-cms-extension/v1",
+  "id": "kuaiz.directory",
+  "name": "目录内容",
+  "version": "1.0.0",
+  "description": "用于门店、团队、课程、房源等可检索目录的声明式参考扩展。",
+  "type": "content",
+  "execution": "declarative",
+  "entrypoint": null,
+  "migrations": [],
+  "requires": {
+    "cms": ">=0.1.0 <1.0.0",
+    "php": ">=8.1"
+  },
+  "permissions": [
+    "content.read",
+    "content.write",
+    "media.read",
+    "media.write"
+  ],
+  "routes": [
+    {
+      "id": "list",
+      "path": "/directory",
+      "methods": ["GET"],
+      "access": "public",
+      "content_type": "listing"
+    },
+    {
+      "id": "detail",
+      "path": "/directory/{slug}",
+      "methods": ["GET"],
+      "access": "public",
+      "content_type": "listing"
+    }
+  ],
+  "events": {
+    "subscribes": [],
+    "publishes": ["kuaiz.directory.entry_published"]
+  },
+  "theme_slots": [
+    "kuaiz.directory.list",
+    "kuaiz.directory.detail"
+  ],
+  "content_types": [
+    {
+      "id": "listing",
+      "label": "目录条目",
+      "route": "directory",
+      "fields": [
+        {"key": "title", "label": "名称", "type": "text", "required": true, "searchable": true},
+        {"key": "summary", "label": "简介", "type": "long_text", "required": true, "searchable": true},
+        {"key": "cover", "label": "封面图", "type": "image", "required": false, "searchable": false},
+        {"key": "phone", "label": "联系电话", "type": "text", "required": false, "searchable": false},
+        {"key": "website", "label": "网站", "type": "url", "required": false, "searchable": false},
+        {"key": "sort_order", "label": "排序", "type": "number", "required": false, "searchable": false}
+      ]
+    }
+  ],
+  "data_policy": {
+    "personal_data": [],
+    "retention_days": 0,
+    "exportable": true,
+    "deletable": true
+  },
+  "network": {
+    "outbound_hosts": []
+  }
+}

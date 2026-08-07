@@ -1,0 +1,10 @@
+/.DS_Store
+/.idea/
+/.vscode/
+/artifacts/
+/var/
+*.log
+*.sqlite
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal

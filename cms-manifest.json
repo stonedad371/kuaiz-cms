@@ -1,0 +1,32 @@
+{
+  "schema": "kuaiz-cms-distribution/v1",
+  "name": "Kuaiz CMS Community",
+  "version": "0.1.0-dev",
+  "runtime_profile": "community-php-sqlite-v1",
+  "database": "sqlite",
+  "database_schema_version": 5,
+  "license": "Apache-2.0",
+  "source_distribution": "public-github",
+  "minimum_php": "8.1",
+  "required_php_extensions": [
+    "pdo_sqlite",
+    "fileinfo",
+    "gd",
+    "sodium"
+  ],
+  "optional_php_extensions": [
+    "exif"
+  ],
+  "license_required": false,
+  "independent_editing": true,
+  "independent_publishing": true,
+  "public_site_requires_vendor": false,
+  "ai_operations": "optional-outbound-connector",
+  "theme_protocol": "kuaiz-theme/v2",
+  "extension_protocol": "kuaiz-cms-extension/v1",
+  "extension_execution": [
+    "declarative",
+    "official-signed-php"
+  ],
+  "distribution_status": "developer-preview"
+}
