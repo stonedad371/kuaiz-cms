@@ -413,7 +413,7 @@ final class KuaizCmsBackup
                     continue;
                 }
                 if (!is_string($key) || !preg_match(
-                    '#^media/[a-f0-9]{2}/[a-f0-9]{2}/[a-f0-9]{64}(?:\.thumb)?\.webp$#D',
+                    '#^media/[a-f0-9]{2}/[a-f0-9]{2}/[a-f0-9]{64}(?:\.thumb)?\.(?:webp|jpg|png)$#D',
                     $key
                 )) {
                     throw new RuntimeException('cms_backup_media_path_invalid');
@@ -501,7 +501,7 @@ final class KuaizCmsBackup
     {
         return $path === 'cms.sqlite'
             || (bool)preg_match(
-                '#^media/[a-f0-9]{2}/[a-f0-9]{2}/[a-f0-9]{64}(?:\.thumb)?\.webp$#D',
+                '#^media/[a-f0-9]{2}/[a-f0-9]{2}/[a-f0-9]{64}(?:\.thumb)?\.(?:webp|jpg|png)$#D',
                 $path
             )
             || (bool)preg_match(

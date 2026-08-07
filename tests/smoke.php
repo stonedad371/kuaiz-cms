@@ -182,6 +182,37 @@ try {
             && KuaizCmsThemeRegistry::active($pdo)['theme_id'] === 'kuaiz.studio',
         'smoke_theme_selection_failed'
     );
+    $sourceImage = $data . '/smoke-source.png';
+    $canvas = imagecreatetruecolor(320, 200);
+    smoke_require(is_resource($canvas) || is_object($canvas), 'smoke_media_canvas_failed');
+    $background = imagecolorallocate($canvas, 23, 97, 70);
+    imagefilledrectangle($canvas, 0, 0, 319, 199, $background);
+    smoke_require(imagepng($canvas, $sourceImage), 'smoke_media_source_failed');
+    imagedestroy($canvas);
+    $media = KuaizCmsMediaRepository::storeImage(
+        $pdo,
+        $data,
+        $sourceImage,
+        'smoke-source.png',
+        'Smoke test image',
+        '',
+        'test:smoke'
+    );
+    $expectedMediaType = function_exists('imagewebp') ? 'image/webp'
+        : (function_exists('imagejpeg') ? 'image/jpeg' : 'image/png');
+    $expectedMediaExtension = KuaizCmsMediaRepository::extensionForMimeType(
+        $expectedMediaType
+    );
+    smoke_require($media['mime_type'] === $expectedMediaType, 'smoke_media_type_failed');
+    smoke_require(
+        str_ends_with($media['storage_key'], '.' . $expectedMediaExtension),
+        'smoke_media_extension_failed'
+    );
+    $mediaFile = KuaizCmsMediaRepository::readFile($pdo, $data, $media['id'], true);
+    smoke_require(
+        $mediaFile['mime_type'] === $expectedMediaType && $mediaFile['byte_size'] > 0,
+        'smoke_media_read_failed'
+    );
     KuaizCmsContentRepository::save(
         $pdo,
         'kuaiz.directory',
@@ -223,6 +254,7 @@ try {
     smoke_require($backup['file_count'] >= 1, 'smoke_backup_failed');
     fwrite(STDOUT, json_encode([
         'backup_files' => $backup['file_count'],
+        'media_type' => $media['mime_type'],
         'ok' => true,
         'schema' => $schema,
     ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");

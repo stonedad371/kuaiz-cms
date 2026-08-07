@@ -43,11 +43,19 @@ $missing = array_values(array_filter(
     $required,
     static fn(string $extension): bool => !extension_loaded($extension)
 ));
-if (!function_exists('imagewebp')) {
-    $missing[] = 'gd-webp';
-}
 PHP_VERSION_ID < 70400 ? $fail('php', PHP_VERSION) : $pass('php', PHP_VERSION);
 $missing !== [] ? $fail('extensions', $missing) : $pass('extensions', $required);
+$imageFormat = function_exists('imagewebp') ? 'webp'
+    : (function_exists('imagejpeg') ? 'jpeg'
+        : (function_exists('imagepng') ? 'png' : null));
+$imageDecoder = function_exists('imagecreatefromjpeg')
+    || function_exists('imagecreatefrompng')
+    || function_exists('imagecreatefromwebp');
+if ($imageFormat === null || !$imageDecoder || !function_exists('imagecreatetruecolor')) {
+    $fail('image_processing', 'gd_image_functions_missing');
+} else {
+    $pass('image_processing', ['output_format' => $imageFormat]);
+}
 
 if (str_contains($dataDirectory, "\0") || is_link($dataDirectory) || !is_dir($dataDirectory)) {
     $fail('data_directory', 'missing_or_unsafe');

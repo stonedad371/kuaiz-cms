@@ -25,13 +25,18 @@ final class KuaizCmsPublicApplication
         if ($path === '/sitemap.xml') {
             return self::head(self::sitemap($pdo, $settings), $method);
         }
-        if (preg_match('#^/media/([1-9][0-9]*)/([a-f0-9]{64})(-thumb)?\.webp$#D', $path, $media)) {
+        if (preg_match(
+            '#^/media/([1-9][0-9]*)/([a-f0-9]{64})(-thumb)?\.(webp|jpg|png)$#D',
+            $path,
+            $media
+        )) {
             return self::head(self::media(
                 $pdo,
                 $storageRoot,
                 (int)$media[1],
                 $media[2],
-                ($media[3] ?? '') === '-thumb'
+                ($media[3] ?? '') === '-thumb',
+                $media[4]
             ), $method);
         }
 
@@ -199,9 +204,10 @@ final class KuaizCmsPublicApplication
                 continue;
             }
             $base = '/media/' . $media['id'] . '/' . $media['sha256'];
+            $extension = KuaizCmsMediaRepository::extensionForMimeType($media['mime_type']);
             $context['media'][$media['id']] = [
-                'url' => $base . '.webp',
-                'thumbnail_url' => $base . '-thumb.webp',
+                'url' => $base . '.' . $extension,
+                'thumbnail_url' => $base . '-thumb.' . $extension,
                 'alt_text' => $media['alt_text'],
                 'width' => $media['width'],
                 'height' => $media['height'],
@@ -234,11 +240,13 @@ final class KuaizCmsPublicApplication
         string $storageRoot,
         int $mediaId,
         string $sha256,
-        bool $thumbnail
+        bool $thumbnail,
+        string $extension
     ): array {
         try {
             $media = KuaizCmsMediaRepository::item($pdo, $mediaId);
-            if ($media['status'] !== 'active' || !hash_equals($media['sha256'], $sha256)) {
+            if ($media['status'] !== 'active' || !hash_equals($media['sha256'], $sha256)
+                || KuaizCmsMediaRepository::extensionForMimeType($media['mime_type']) !== $extension) {
                 throw new RuntimeException('cms_public_media_not_found');
             }
             $file = KuaizCmsMediaRepository::readFile($pdo, $storageRoot, $mediaId, $thumbnail);
@@ -252,7 +260,7 @@ final class KuaizCmsPublicApplication
         return [
             'status' => 200,
             'headers' => [
-                'Content-Type' => 'image/webp',
+                'Content-Type' => $file['mime_type'],
                 'Content-Length' => (string)$file['byte_size'],
                 'Cache-Control' => 'public, max-age=31536000, immutable',
                 'Content-Security-Policy' => "default-src 'none'; sandbox",

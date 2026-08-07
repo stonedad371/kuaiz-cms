@@ -22,12 +22,22 @@ $missingExtensions = array_values(array_filter(
     ['pdo_sqlite', 'fileinfo', 'gd'],
     static fn(string $extension): bool => !extension_loaded($extension)
 ));
-if ($missingExtensions !== [] || !function_exists('imagewebp')) {
+if ($missingExtensions !== []) {
     $missing = $missingExtensions;
-    if (!function_exists('imagewebp')) {
-        $missing[] = 'gd-webp';
-    }
     fwrite(STDERR, "主机缺少必要的 PHP 能力：" . implode('、', $missing) . "。\n");
+    exit(1);
+}
+$gdFunctions = function_exists('getimagesize')
+    && function_exists('imagecreatetruecolor')
+    && function_exists('imagecopyresampled');
+$imageDecoder = function_exists('imagecreatefromjpeg')
+    || function_exists('imagecreatefrompng')
+    || function_exists('imagecreatefromwebp');
+$imageEncoder = function_exists('imagewebp')
+    || function_exists('imagejpeg')
+    || function_exists('imagepng');
+if (!$gdFunctions || !$imageDecoder || !$imageEncoder) {
+    fwrite(STDERR, "主机的 PHP GD 无法正常处理图片。\n");
     exit(1);
 }
 

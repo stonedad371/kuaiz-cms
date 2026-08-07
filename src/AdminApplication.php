@@ -539,11 +539,25 @@ final class KuaizCmsAdminApplication
         }
         $upload = '';
         if ($canEdit && $status === 'active') {
+            $accepted = [];
+            $labels = [];
+            foreach ([
+                'imagecreatefromjpeg' => ['image/jpeg', 'JPG'],
+                'imagecreatefrompng' => ['image/png', 'PNG'],
+                'imagecreatefromwebp' => ['image/webp', 'WebP'],
+            ] as $decoder => $format) {
+                if (function_exists($decoder)) {
+                    $accepted[] = $format[0];
+                    $labels[] = $format[1];
+                }
+            }
             $upload = '<section class="panel upload"><div class="panel-head"><div><h2>上传图片</h2>'
-                . '<small>支持 JPG、PNG、WebP；系统会重新编码并生成缩略图。</small></div></div>'
+                . '<small>支持 ' . self::h(implode('、', $labels))
+                . '；系统会自动处理并生成缩略图。</small></div></div>'
                 . '<form method="post" action="/admin/media/upload" enctype="multipart/form-data">'
                 . self::hidden('_csrf', $csrfToken)
-                . '<label>选择图片<input type="file" name="image" accept="image/jpeg,image/png,image/webp" required></label>'
+                . '<label>选择图片<input type="file" name="image" accept="'
+                . self::h(implode(',', $accepted)) . '" required></label>'
                 . '<label>图片说明<input name="alt_text" maxlength="500"><small>描述图片内容，有助于无障碍访问和图片搜索。</small></label>'
                 . '<label>内部备注<textarea name="caption" rows="2" maxlength="2000"></textarea></label>'
                 . '<button class="button" type="submit">安全处理并上传</button></form></section>';
@@ -639,7 +653,7 @@ final class KuaizCmsAdminApplication
         return [
             'status' => 200,
             'headers' => [
-                'Content-Type' => 'image/webp',
+                'Content-Type' => $file['mime_type'],
                 'Content-Length' => (string)$file['byte_size'],
                 'Cache-Control' => 'private, max-age=300',
                 'Content-Security-Policy' => "default-src 'none'; sandbox",
@@ -1196,13 +1210,13 @@ final class KuaizCmsAdminApplication
             'cms_content_archived_publish_forbidden' => '请先恢复已归档内容，再发布。',
             'cms_admin_entry_identity_changed' => '内容身份发生变化，已拒绝保存。',
             'cms_media_upload_size_invalid' => '图片文件过大，最大支持 12MB。',
-            'cms_media_type_unsupported' => '只支持 JPG、PNG 和 WebP 图片。',
+            'cms_media_type_unsupported' => '这种图片格式暂不支持，请按上传页列出的格式选择。',
             'cms_media_dimensions_invalid' => '图片尺寸或像素数量超过安全限制。',
             'cms_media_image_invalid' => '图片内容损坏或格式不正确。',
             'cms_media_decode_failed' => '图片内容损坏或格式不正确。',
             'cms_media_in_use' => '这张图片仍被当前内容使用，暂时不能归档。',
             'cms_media_image_runtime_missing' => '主机缺少图片处理能力，请联系服务商启用 PHP GD。',
-            'cms_media_decoder_missing' => '主机缺少图片处理能力，请联系服务商启用 PHP GD。',
+            'cms_media_decoder_missing' => '当前主机不能处理这种图片，请按上传页列出的格式选择。',
             'cms_media_upload_failed' => '图片上传没有完成，请重新选择文件。',
             'cms_media_upload_invalid' => '图片上传没有完成，请重新选择文件。',
             'cms_site_name_invalid' => '请完整填写网站名称和网站介绍。',

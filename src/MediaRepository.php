@@ -10,6 +10,8 @@ final class KuaizCmsMediaRepository
     private const MAX_OUTPUT_EDGE = 3000;
     private const THUMBNAIL_EDGE = 640;
     private const WEBP_QUALITY = 84;
+    private const JPEG_QUALITY = 88;
+    private const PNG_COMPRESSION = 6;
 
     public static function storeImage(
         PDO $pdo,
@@ -32,9 +34,11 @@ final class KuaizCmsMediaRepository
             throw new RuntimeException('cms_media_upload_size_invalid');
         }
         if (!class_exists('finfo') || !function_exists('getimagesize')
-            || !function_exists('imagewebp') || !function_exists('imagecreatetruecolor')) {
+            || !function_exists('imagecreatetruecolor')
+            || !function_exists('imagecopyresampled')) {
             throw new RuntimeException('cms_media_image_runtime_missing');
         }
+        $output = self::outputFormat();
         $finfo = new finfo(FILEINFO_MIME_TYPE);
         $mimeType = $finfo->file($uploadedPath);
         if (!is_string($mimeType)
@@ -70,7 +74,7 @@ final class KuaizCmsMediaRepository
             );
             $thumbnail = self::resample($normalized, $thumbWidth, $thumbHeight);
         } finally {
-            isset($source) && is_object($source) && imagedestroy($source);
+            isset($source) && self::isImage($source) && imagedestroy($source);
         }
 
         $root = self::storageRoot($storageRoot);
@@ -78,13 +82,13 @@ final class KuaizCmsMediaRepository
         $normalizedTemporary = tempnam($temporaryDirectory, 'image-');
         $thumbnailTemporary = tempnam($temporaryDirectory, 'thumb-');
         if (!is_string($normalizedTemporary) || !is_string($thumbnailTemporary)) {
-            isset($normalized) && is_object($normalized) && imagedestroy($normalized);
-            isset($thumbnail) && is_object($thumbnail) && imagedestroy($thumbnail);
+            isset($normalized) && self::isImage($normalized) && imagedestroy($normalized);
+            isset($thumbnail) && self::isImage($thumbnail) && imagedestroy($thumbnail);
             throw new RuntimeException('cms_media_temporary_file_failed');
         }
         try {
-            if (!imagewebp($normalized, $normalizedTemporary, self::WEBP_QUALITY)
-                || !imagewebp($thumbnail, $thumbnailTemporary, self::WEBP_QUALITY)) {
+            if (!self::encode($normalized, $normalizedTemporary, $output['mime_type'])
+                || !self::encode($thumbnail, $thumbnailTemporary, $output['mime_type'])) {
                 throw new RuntimeException('cms_media_encode_failed');
             }
         } finally {
@@ -101,11 +105,12 @@ final class KuaizCmsMediaRepository
             throw new RuntimeException('cms_media_hash_failed');
         }
         $relativeDirectory = 'media/' . substr($sha256, 0, 2) . '/' . substr($sha256, 2, 2);
-        $storageKey = $relativeDirectory . '/' . $sha256 . '.webp';
-        $thumbnailStorageKey = $relativeDirectory . '/' . $sha256 . '.thumb.webp';
+        $extension = $output['extension'];
+        $storageKey = $relativeDirectory . '/' . $sha256 . '.' . $extension;
+        $thumbnailStorageKey = $relativeDirectory . '/' . $sha256 . '.thumb.' . $extension;
         $targetDirectory = self::directory($root . '/' . $relativeDirectory, $root);
-        $normalizedTarget = $targetDirectory . '/' . $sha256 . '.webp';
-        $thumbnailTarget = $targetDirectory . '/' . $sha256 . '.thumb.webp';
+        $normalizedTarget = $targetDirectory . '/' . $sha256 . '.' . $extension;
+        $thumbnailTarget = $targetDirectory . '/' . $sha256 . '.thumb.' . $extension;
         $createdNormalized = false;
         $createdThumbnail = false;
         try {
@@ -128,6 +133,7 @@ final class KuaizCmsMediaRepository
                 $storageKey,
                 $thumbnailStorageKey,
                 $originalName,
+                $output['mime_type'],
                 $sha256,
                 (int)filesize($normalizedTarget),
                 $outputWidth,
@@ -204,8 +210,10 @@ SQL);
     ): array {
         $media = self::item($pdo, $mediaId);
         $key = $thumbnail ? $media['thumbnail_storage_key'] : $media['storage_key'];
+        $extension = self::extensionForMimeType($media['mime_type']);
         if (!is_string($key) || !preg_match(
-            '#^media/[a-f0-9]{2}/[a-f0-9]{2}/[a-f0-9]{64}(?:\.thumb)?\.webp$#D',
+            '#^media/[a-f0-9]{2}/[a-f0-9]{2}/[a-f0-9]{64}(?:\.thumb)?\.'
+                . preg_quote($extension, '#') . '$#D',
             $key
         )) {
             throw new RuntimeException('cms_media_storage_key_invalid');
@@ -225,7 +233,20 @@ SQL);
         if (!is_int($bytes) || $bytes < 1 || $bytes > self::MAX_UPLOAD_BYTES) {
             throw new RuntimeException('cms_media_file_invalid');
         }
-        return ['path' => $realPath, 'mime_type' => 'image/webp', 'byte_size' => $bytes];
+        return ['path' => $realPath, 'mime_type' => $media['mime_type'], 'byte_size' => $bytes];
+    }
+
+    public static function extensionForMimeType(string $mimeType): string
+    {
+        $extensions = [
+            'image/webp' => 'webp',
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+        ];
+        if (!isset($extensions[$mimeType])) {
+            throw new RuntimeException('cms_media_type_unsupported');
+        }
+        return $extensions[$mimeType];
     }
 
     public static function updateText(
@@ -330,6 +351,7 @@ SQL)->execute([':updated_at' => $now, ':media_id' => $mediaId]);
         string $storageKey,
         string $thumbnailStorageKey,
         string $originalName,
+        string $mimeType,
         string $sha256,
         int $byteSize,
         int $width,
@@ -366,11 +388,12 @@ INSERT INTO cms_media(
   storage_key,original_name,mime_type,byte_size,sha256,alt_text,caption,
   created_at,updated_at,width,height,thumbnail_storage_key,status,archived_at)
 VALUES(
-  :storage_key,:original_name,'image/webp',:byte_size,:sha256,:alt_text,:caption,
+  :storage_key,:original_name,:mime_type,:byte_size,:sha256,:alt_text,:caption,
   :created_at,:updated_at,:width,:height,:thumbnail_storage_key,'active',NULL)
 SQL)->execute([
                     ':storage_key' => $storageKey,
                     ':original_name' => $originalName,
+                    ':mime_type' => $mimeType,
                     ':byte_size' => $byteSize,
                     ':sha256' => $sha256,
                     ':alt_text' => $altText,
@@ -405,7 +428,7 @@ SQL)->execute([
         return self::item($pdo, $mediaId);
     }
 
-    private static function decode(string $path, string $mimeType): object
+    private static function decode(string $path, string $mimeType)
     {
         $loaders = [
             'image/jpeg' => 'imagecreatefromjpeg',
@@ -417,13 +440,13 @@ SQL)->execute([
             throw new RuntimeException('cms_media_decoder_missing');
         }
         $image = @$loader($path);
-        if (!is_object($image)) {
+        if (!self::isImage($image)) {
             throw new RuntimeException('cms_media_decode_failed');
         }
         return $image;
     }
 
-    private static function orient(object $image, string $path, string $mimeType): object
+    private static function orient($image, string $path, string $mimeType)
     {
         if ($mimeType !== 'image/jpeg' || !function_exists('exif_read_data')) {
             return $image;
@@ -437,7 +460,7 @@ SQL)->execute([
             return $image;
         }
         $rotated = imagerotate($image, $angle, 0);
-        if (!is_object($rotated)) {
+        if (!self::isImage($rotated)) {
             throw new RuntimeException('cms_media_orientation_failed');
         }
         imagedestroy($image);
@@ -450,10 +473,10 @@ SQL)->execute([
         return [max(1, (int)round($width * $ratio)), max(1, (int)round($height * $ratio))];
     }
 
-    private static function resample(object $source, int $width, int $height): object
+    private static function resample($source, int $width, int $height)
     {
         $target = imagecreatetruecolor($width, $height);
-        if (!is_object($target)) {
+        if (!self::isImage($target)) {
             throw new RuntimeException('cms_media_canvas_failed');
         }
         imagealphablending($target, false);
@@ -476,6 +499,51 @@ SQL)->execute([
             throw new RuntimeException('cms_media_resize_failed');
         }
         return $target;
+    }
+
+    private static function outputFormat(): array
+    {
+        if (function_exists('imagewebp')) {
+            return ['mime_type' => 'image/webp', 'extension' => 'webp'];
+        }
+        if (function_exists('imagejpeg')) {
+            return ['mime_type' => 'image/jpeg', 'extension' => 'jpg'];
+        }
+        if (function_exists('imagepng')) {
+            return ['mime_type' => 'image/png', 'extension' => 'png'];
+        }
+        throw new RuntimeException('cms_media_image_runtime_missing');
+    }
+
+    private static function encode($image, string $path, string $mimeType): bool
+    {
+        if ($mimeType === 'image/webp' && function_exists('imagewebp')) {
+            return imagewebp($image, $path, self::WEBP_QUALITY);
+        }
+        if ($mimeType === 'image/png' && function_exists('imagepng')) {
+            return imagepng($image, $path, self::PNG_COMPRESSION);
+        }
+        if ($mimeType !== 'image/jpeg' || !function_exists('imagejpeg')) {
+            return false;
+        }
+        $width = imagesx($image);
+        $height = imagesy($image);
+        $flattened = imagecreatetruecolor($width, $height);
+        if (!self::isImage($flattened)) {
+            return false;
+        }
+        $white = imagecolorallocate($flattened, 255, 255, 255);
+        $filled = $white !== false
+            && imagefilledrectangle($flattened, 0, 0, $width, $height, $white);
+        $copied = $filled && imagecopy($flattened, $image, 0, 0, 0, 0, $width, $height);
+        $encoded = $copied && imagejpeg($flattened, $path, self::JPEG_QUALITY);
+        imagedestroy($flattened);
+        return $encoded;
+    }
+
+    private static function isImage($value): bool
+    {
+        return is_resource($value) || is_object($value);
     }
 
     private static function storageRoot(string $storageRoot): string
