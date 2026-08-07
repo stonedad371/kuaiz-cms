@@ -1,6 +1,7 @@
 Options -Indexes
 
 RewriteEngine On
+RewriteRule ^\.kuaiz-cms- - [F,L,NC]
 RewriteRule ^\.(?:htaccess|user\.ini)$ - [F,L,NC]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
