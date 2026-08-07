@@ -6,6 +6,7 @@ if (PHP_SAPI !== 'cli') {
     exit(1);
 }
 
+require_once dirname(__DIR__) . '/src/Compatibility.php';
 require_once dirname(__DIR__) . '/src/Database.php';
 require_once dirname(__DIR__) . '/src/Auth.php';
 require_once dirname(__DIR__) . '/src/ExtensionManifest.php';
@@ -13,8 +14,8 @@ require_once dirname(__DIR__) . '/src/ExtensionRegistry.php';
 require_once dirname(__DIR__) . '/src/ThemeManifest.php';
 require_once dirname(__DIR__) . '/src/ThemeRegistry.php';
 
-if (PHP_VERSION_ID < 80100) {
-    fwrite(STDERR, "Kuaiz CMS 需要 PHP 8.1 或更高版本。\n");
+if (PHP_VERSION_ID < 70400) {
+    fwrite(STDERR, "Kuaiz CMS 需要 PHP 7.4 或更高版本。\n");
     exit(1);
 }
 $missingExtensions = array_values(array_filter(

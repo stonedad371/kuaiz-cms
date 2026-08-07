@@ -102,7 +102,7 @@ final class KuaizCmsThemeManifest
         return $body;
     }
 
-    private static function author(mixed $value): array
+    private static function author($value): array
     {
         $value = self::object($value, 'theme_author_invalid');
         self::exactKeys($value, ['name', 'url'], 'theme_author_fields_invalid');
@@ -114,7 +114,7 @@ final class KuaizCmsThemeManifest
         return ['name' => $name, 'url' => $url];
     }
 
-    private static function compatibility(mixed $value): array
+    private static function compatibility($value): array
     {
         $value = self::object($value, 'theme_compatibility_invalid');
         self::exactKeys(
@@ -139,7 +139,7 @@ final class KuaizCmsThemeManifest
         return ['cms' => $cms, 'site_language_mode' => 'single', 'directions' => $directions];
     }
 
-    private static function design(mixed $value): array
+    private static function design($value): array
     {
         $value = self::object($value, 'theme_design_invalid');
         self::exactKeys($value, ['colors', 'typography', 'layout', 'shape'], 'theme_design_fields_invalid');
@@ -190,7 +190,7 @@ final class KuaizCmsThemeManifest
         return ['colors' => $colors, 'typography' => $typography, 'layout' => $layout, 'shape' => $shape];
     }
 
-    private static function colors(mixed $value): array
+    private static function colors($value): array
     {
         $value = self::object($value, 'theme_colors_invalid');
         $keys = [
@@ -219,7 +219,7 @@ final class KuaizCmsThemeManifest
         return $colors;
     }
 
-    private static function templates(mixed $value): array
+    private static function templates($value): array
     {
         $value = self::object($value, 'theme_templates_invalid');
         self::exactKeys($value, self::REQUIRED_TEMPLATES, 'theme_template_fields_invalid');
@@ -245,7 +245,7 @@ final class KuaizCmsThemeManifest
         return $templates;
     }
 
-    private static function section(mixed $value): array
+    private static function section($value): array
     {
         $value = self::object($value, 'theme_section_invalid');
         self::exactKeys($value, [
@@ -308,7 +308,7 @@ final class KuaizCmsThemeManifest
         ];
     }
 
-    private static function bindings(mixed $value): array
+    private static function bindings($value): array
     {
         if (!is_array($value) || ($value !== [] && array_is_list($value))) {
             throw new RuntimeException('theme_bindings_invalid');
@@ -329,7 +329,7 @@ final class KuaizCmsThemeManifest
         return $bindings;
     }
 
-    private static function options(mixed $value): array
+    private static function options($value): array
     {
         if (!is_array($value) || ($value !== [] && array_is_list($value))) {
             throw new RuntimeException('theme_options_invalid');
@@ -350,7 +350,7 @@ final class KuaizCmsThemeManifest
         return $options;
     }
 
-    private static function assets(mixed $value): array
+    private static function assets($value): array
     {
         if (!is_array($value) || !array_is_list($value) || count($value) > 200) {
             throw new RuntimeException('theme_assets_invalid');
@@ -398,7 +398,7 @@ final class KuaizCmsThemeManifest
         return $assets;
     }
 
-    private static function preview(mixed $value, array $directions): array
+    private static function preview($value, array $directions): array
     {
         $value = self::object($value, 'theme_preview_invalid');
         self::exactKeys($value, ['required_seeds', 'viewports'], 'theme_preview_fields_invalid');
@@ -449,7 +449,7 @@ final class KuaizCmsThemeManifest
         return (max($first, $second) + 0.05) / (min($first, $second) + 0.05);
     }
 
-    private static function object(mixed $value, string $errorCode): array
+    private static function object($value, string $errorCode): array
     {
         if (!is_array($value) || array_is_list($value)) {
             throw new RuntimeException($errorCode);
@@ -468,7 +468,7 @@ final class KuaizCmsThemeManifest
     }
 
     private static function text(
-        mixed $value,
+        $value,
         int $maximum,
         string $errorCode,
         bool $allowEmpty = false
@@ -485,7 +485,7 @@ final class KuaizCmsThemeManifest
         return $value;
     }
 
-    private static function enum(mixed $value, array $allowed, string $errorCode): string
+    private static function enum($value, array $allowed, string $errorCode): string
     {
         if (!is_string($value) || !in_array($value, $allowed, true)) {
             throw new RuntimeException($errorCode);
@@ -494,7 +494,7 @@ final class KuaizCmsThemeManifest
     }
 
     private static function enumList(
-        mixed $value,
+        $value,
         array $allowed,
         int $maximum,
         string $errorCode,
@@ -516,7 +516,7 @@ final class KuaizCmsThemeManifest
         return $result;
     }
 
-    private static function integer(mixed $value, int $minimum, int $maximum, string $errorCode): int
+    private static function integer($value, int $minimum, int $maximum, string $errorCode): int
     {
         if (!is_int($value) || $value < $minimum || $value > $maximum) {
             throw new RuntimeException($errorCode);
@@ -525,7 +525,7 @@ final class KuaizCmsThemeManifest
     }
 
     private static function nullableInteger(
-        mixed $value,
+        $value,
         int $minimum,
         int $maximum,
         string $errorCode
@@ -536,7 +536,7 @@ final class KuaizCmsThemeManifest
         return self::integer($value, $minimum, $maximum, $errorCode);
     }
 
-    private static function httpsUrl(mixed $value, string $errorCode): string
+    private static function httpsUrl($value, string $errorCode): string
     {
         $url = self::text($value, 2048, $errorCode);
         $parts = parse_url($url);
@@ -548,7 +548,7 @@ final class KuaizCmsThemeManifest
         return $url;
     }
 
-    private static function canonicalValue(mixed $value, ?string $parentKey = null): mixed
+    private static function canonicalValue($value, ?string $parentKey = null)
     {
         if (!is_array($value)) {
             return $value;
@@ -558,7 +558,7 @@ final class KuaizCmsThemeManifest
         }
         if (array_is_list($value)) {
             return array_map(
-                static fn(mixed $item): mixed => self::canonicalValue($item),
+                static fn($item) => self::canonicalValue($item),
                 $value
             );
         }

@@ -683,10 +683,10 @@ SQL);
     private static function fieldValue(
         PDO $pdo,
         string $type,
-        mixed $value,
+        $value,
         bool $required,
         string $key
-    ): mixed {
+    ) {
         if ($type === 'text' || $type === 'long_text') {
             if (!is_string($value) || !preg_match('//u', $value)
                 || preg_match('/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/', $value)) {
@@ -865,7 +865,7 @@ SQL)->execute([
         return $value;
     }
 
-    private static function canonicalValue(mixed $value): mixed
+    private static function canonicalValue($value)
     {
         if (!is_array($value)) {
             return $value;

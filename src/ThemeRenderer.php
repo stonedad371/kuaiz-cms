@@ -100,22 +100,41 @@ final class KuaizCmsThemeRenderer
             . ' variant-' . $section['variant']
             . ' width-' . $section['width']
             . ' tone-' . $section['tone'];
-        $content = match ($section['component']) {
-            'hero' => self::hero($data, $context),
-            'rich_text' => self::richText($data),
-            'card_grid' => self::cardGrid($data, $section['options'], $context),
-            'media_text' => self::mediaText($data, $context),
-            'stats' => self::stats($data),
-            'faq' => self::faq($data),
-            'cta' => self::cta($data, $section['options']),
-            'contact' => self::contact($data, $settings),
-            'extension_slot' => self::extensionSlot(
-                (string)$section['options']['slot'],
-                $data,
-                $context
-            ),
-            default => '',
-        };
+        switch ($section['component']) {
+            case 'hero':
+                $content = self::hero($data, $context);
+                break;
+            case 'rich_text':
+                $content = self::richText($data);
+                break;
+            case 'card_grid':
+                $content = self::cardGrid($data, $section['options'], $context);
+                break;
+            case 'media_text':
+                $content = self::mediaText($data, $context);
+                break;
+            case 'stats':
+                $content = self::stats($data);
+                break;
+            case 'faq':
+                $content = self::faq($data);
+                break;
+            case 'cta':
+                $content = self::cta($data, $section['options']);
+                break;
+            case 'contact':
+                $content = self::contact($data, $settings);
+                break;
+            case 'extension_slot':
+                $content = self::extensionSlot(
+                    (string)$section['options']['slot'],
+                    $data,
+                    $context
+                );
+                break;
+            default:
+                $content = '';
+        }
         if ($content === '' && $section['visibility']['when_empty'] === 'hide') {
             return '';
         }
@@ -300,7 +319,7 @@ final class KuaizCmsThemeRenderer
             . '</div>';
     }
 
-    private static function safeExternalUrl(mixed $value): string
+    private static function safeExternalUrl($value): string
     {
         if (!is_string($value) || $value === '' || strlen($value) > 2048) {
             return '';
@@ -313,7 +332,7 @@ final class KuaizCmsThemeRenderer
         return $value;
     }
 
-    private static function image(mixed $value, array $context, bool $thumbnail): string
+    private static function image($value, array $context, bool $thumbnail): string
     {
         if (!is_int($value) || $value < 1 || !isset($context['media'][$value])
             || !is_array($context['media'][$value])) {
@@ -329,7 +348,7 @@ final class KuaizCmsThemeRenderer
             . '" loading="lazy" decoding="async">';
     }
 
-    private static function resolve(string $binding, array $settings, array $context): mixed
+    private static function resolve(string $binding, array $settings, array $context)
     {
         [$scope, $key] = explode('.', $binding, 2);
         $source = $scope === 'site' ? $settings : ($context[$scope] ?? []);
@@ -347,7 +366,7 @@ final class KuaizCmsThemeRenderer
         return $source[$key] ?? null;
     }
 
-    private static function navigation(mixed $items): string
+    private static function navigation($items): string
     {
         if (!is_array($items)) {
             return '';
@@ -415,16 +434,16 @@ final class KuaizCmsThemeRenderer
             'rounded' => 'ui-rounded,"Arial Rounded MT Bold",sans-serif',
             'mono' => 'ui-monospace,SFMono-Regular,Consolas,monospace',
         ];
-        $shadow = match ($shape['shadow']) {
+        $shadows = [
             'strong' => '0 26px 70px rgba(15,30,22,.18)',
             'soft' => '0 18px 48px rgba(15,30,22,.09)',
-            default => 'none',
-        };
-        $gap = match ($layout['density']) {
+        ];
+        $shadow = $shadows[$shape['shadow']] ?? 'none';
+        $gaps = [
             'compact' => 'clamp(42px,7vw,72px)',
             'spacious' => 'clamp(76px,12vw,150px)',
-            default => 'clamp(56px,9vw,108px)',
-        };
+        ];
+        $gap = $gaps[$layout['density']] ?? 'clamp(56px,9vw,108px)';
         return ':root{--bg:' . $color['background'] . ';--surface:' . $color['surface']
             . ';--text:' . $color['text'] . ';--muted:' . $color['muted']
             . ';--primary:' . $color['primary'] . ';--primary-text:' . $color['primary_text']
@@ -454,7 +473,7 @@ final class KuaizCmsThemeRenderer
         return true;
     }
 
-    private static function optionalText(mixed $value, int $maximum): string
+    private static function optionalText($value, int $maximum): string
     {
         if (!is_string($value) && !is_int($value) && !is_float($value)) {
             return '';
@@ -463,13 +482,13 @@ final class KuaizCmsThemeRenderer
         return strlen($value) <= $maximum * 4 && preg_match('//u', $value) ? $value : '';
     }
 
-    private static function plain(mixed $value, int $maximum): string
+    private static function plain($value, int $maximum): string
     {
         $value = self::optionalText($value, $maximum);
         return $value === '' ? 'Untitled' : $value;
     }
 
-    private static function internalUrl(mixed $value): string
+    private static function internalUrl($value): string
     {
         if (!is_string($value) || !preg_match('#^/[a-z0-9/_-]*$#D', $value)
             || str_contains($value, '//') || str_contains($value, '..')) {
@@ -478,7 +497,7 @@ final class KuaizCmsThemeRenderer
         return $value;
     }
 
-    private static function canonicalPath(mixed $value): string
+    private static function canonicalPath($value): string
     {
         $path = self::internalUrl($value);
         return $path !== '/' ? rtrim($path, '/') : '/';

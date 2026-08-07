@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/src/Compatibility.php';
+
 $root = dirname(__DIR__);
 require_once $root . '/src/Database.php';
 require_once $root . '/src/Maintenance.php';

@@ -371,7 +371,7 @@ SQL);
         }
     }
 
-    private static function migrationLock(string $parent): mixed
+    private static function migrationLock(string $parent)
     {
         $path = $parent . '/.migration.lock';
         if (is_link($path)) {
@@ -393,7 +393,7 @@ SQL);
         return $handle;
     }
 
-    private static function releaseLock(mixed $handle): void
+    private static function releaseLock($handle): void
     {
         if (is_resource($handle)) {
             @flock($handle, LOCK_UN);

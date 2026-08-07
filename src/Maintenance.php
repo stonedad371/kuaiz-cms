@@ -4,17 +4,17 @@ declare(strict_types=1);
 /** Cross-request lock used by backup, restore and the web front controller. */
 final class KuaizCmsMaintenance
 {
-    public static function shared(string $dataDirectory): mixed
+    public static function shared(string $dataDirectory)
     {
         return self::acquire($dataDirectory, LOCK_SH | LOCK_NB, 'cms_maintenance_in_progress');
     }
 
-    public static function exclusive(string $dataDirectory): mixed
+    public static function exclusive(string $dataDirectory)
     {
         return self::acquire($dataDirectory, LOCK_EX | LOCK_NB, 'cms_maintenance_busy');
     }
 
-    public static function release(mixed $handle): void
+    public static function release($handle): void
     {
         if (is_resource($handle)) {
             @flock($handle, LOCK_UN);
@@ -26,7 +26,7 @@ final class KuaizCmsMaintenance
         string $dataDirectory,
         int $operation,
         string $busyError
-    ): mixed {
+    ) {
         $root = self::dataRoot($dataDirectory);
         $path = $root . '/.maintenance.lock';
         if (is_link($path)) {

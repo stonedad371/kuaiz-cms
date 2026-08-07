@@ -12,7 +12,7 @@ final class KuaizCmsPublicApplication
         }
         try {
             $path = self::requestPath((string)($server['REQUEST_URI'] ?? '/'));
-        } catch (RuntimeException) {
+        } catch (RuntimeException $ignored) {
             return self::plain(400, 'Invalid request path.', true);
         }
         $settings = KuaizCmsSiteSettings::get($pdo);
@@ -192,7 +192,7 @@ final class KuaizCmsPublicApplication
         foreach (array_keys($ids) as $mediaId) {
             try {
                 $media = KuaizCmsMediaRepository::item($pdo, (int)$mediaId);
-            } catch (RuntimeException) {
+            } catch (RuntimeException $ignored) {
                 continue;
             }
             if ($media['status'] !== 'active') {
@@ -246,7 +246,7 @@ final class KuaizCmsPublicApplication
             if (!is_string($body) || strlen($body) !== $file['byte_size']) {
                 throw new RuntimeException('cms_public_media_read_failed');
             }
-        } catch (RuntimeException) {
+        } catch (RuntimeException $ignored) {
             return self::plain(404, 'Image not found.', true);
         }
         return [

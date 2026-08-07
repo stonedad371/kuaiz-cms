@@ -7,6 +7,7 @@ if (PHP_SAPI !== 'cli') {
 }
 
 $root = dirname(__DIR__);
+require_once $root . '/src/Compatibility.php';
 $dataDirectory = getenv('KUAIZ_CMS_DATA_DIR');
 if (!is_string($dataDirectory) || $dataDirectory === '') {
     $dataDirectory = $root . '/var';
@@ -16,10 +17,10 @@ $report = [
     'runtime' => 'community-php-sqlite-v1',
     'checks' => [],
 ];
-$fail = static function (string $name, mixed $detail) use (&$report): void {
+$fail = static function (string $name, $detail) use (&$report): void {
     $report['checks'][$name] = ['ok' => false, 'detail' => $detail];
 };
-$pass = static function (string $name, mixed $detail) use (&$report): void {
+$pass = static function (string $name, $detail) use (&$report): void {
     $report['checks'][$name] = ['ok' => true, 'detail' => $detail];
 };
 
@@ -45,7 +46,7 @@ $missing = array_values(array_filter(
 if (!function_exists('imagewebp')) {
     $missing[] = 'gd-webp';
 }
-PHP_VERSION_ID < 80100 ? $fail('php', PHP_VERSION) : $pass('php', PHP_VERSION);
+PHP_VERSION_ID < 70400 ? $fail('php', PHP_VERSION) : $pass('php', PHP_VERSION);
 $missing !== [] ? $fail('extensions', $missing) : $pass('extensions', $required);
 
 if (str_contains($dataDirectory, "\0") || is_link($dataDirectory) || !is_dir($dataDirectory)) {

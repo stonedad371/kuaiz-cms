@@ -131,7 +131,7 @@ SQL)->execute([
         return $saved;
     }
 
-    private static function language(mixed $value): string
+    private static function language($value): string
     {
         if (!is_string($value)) {
             throw new RuntimeException('cms_site_language_invalid');
@@ -154,7 +154,7 @@ SQL)->execute([
         return $language;
     }
 
-    private static function baseUrl(mixed $value): string
+    private static function baseUrl($value): string
     {
         $value = self::text($value, 2048, 'cms_site_base_url_invalid');
         $parts = parse_url($value);
@@ -189,7 +189,7 @@ SQL)->execute([
     }
 
     private static function text(
-        mixed $value,
+        $value,
         int $maximum,
         string $errorCode,
         bool $allowEmpty = false

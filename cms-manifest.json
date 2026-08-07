@@ -1,13 +1,13 @@
 {
   "schema": "kuaiz-cms-distribution/v1",
   "name": "Kuaiz CMS Community",
-  "version": "0.1.2-dev",
+  "version": "0.1.3-dev",
   "runtime_profile": "community-php-sqlite-v1",
   "database": "sqlite",
   "database_schema_version": 5,
   "license": "Apache-2.0",
   "source_distribution": "public-github",
-  "minimum_php": "8.1",
+  "minimum_php": "7.4",
   "required_php_extensions": [
     "pdo_sqlite",
     "fileinfo",

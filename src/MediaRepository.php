@@ -407,12 +407,12 @@ SQL)->execute([
 
     private static function decode(string $path, string $mimeType): object
     {
-        $loader = match ($mimeType) {
+        $loaders = [
             'image/jpeg' => 'imagecreatefromjpeg',
             'image/png' => 'imagecreatefrompng',
             'image/webp' => 'imagecreatefromwebp',
-            default => null,
-        };
+        ];
+        $loader = $loaders[$mimeType] ?? null;
         if (!is_string($loader) || !function_exists($loader)) {
             throw new RuntimeException('cms_media_decoder_missing');
         }
@@ -431,12 +431,8 @@ SQL)->execute([
         $exif = @exif_read_data($path, 'IFD0', true, false);
         $orientation = is_array($exif)
             ? (int)($exif['IFD0']['Orientation'] ?? $exif['Orientation'] ?? 1) : 1;
-        $angle = match ($orientation) {
-            3 => 180,
-            6 => -90,
-            8 => 90,
-            default => 0,
-        };
+        $angles = [3 => 180, 6 => -90, 8 => 90];
+        $angle = $angles[$orientation] ?? 0;
         if ($angle === 0) {
             return $image;
         }

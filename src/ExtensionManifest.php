@@ -150,7 +150,7 @@ final class KuaizCmsExtensionManifest
         ];
     }
 
-    private static function entrypoint(mixed $value): ?array
+    private static function entrypoint($value): ?array
     {
         if ($value === null) {
             return null;
@@ -168,7 +168,7 @@ final class KuaizCmsExtensionManifest
         return ['file' => $file, 'class' => $class];
     }
 
-    private static function migrations(mixed $value): array
+    private static function migrations($value): array
     {
         if (!is_array($value) || !array_is_list($value) || count($value) > 100) {
             throw new RuntimeException('extension_migrations_invalid');
@@ -219,7 +219,7 @@ final class KuaizCmsExtensionManifest
         return $encoded;
     }
 
-    private static function requires(mixed $value): array
+    private static function requires($value): array
     {
         if (!is_array($value) || array_is_list($value)) {
             throw new RuntimeException('extension_requires_invalid');
@@ -236,7 +236,7 @@ final class KuaizCmsExtensionManifest
         return ['cms' => $cms, 'php' => $php];
     }
 
-    private static function routes(mixed $value, array $contentTypes, string $execution): array
+    private static function routes($value, array $contentTypes, string $execution): array
     {
         if (!is_array($value) || !array_is_list($value) || count($value) > 32) {
             throw new RuntimeException('extension_routes_invalid');
@@ -313,7 +313,7 @@ final class KuaizCmsExtensionManifest
         return $result;
     }
 
-    private static function events(mixed $value, string $extensionId): array
+    private static function events($value, string $extensionId): array
     {
         if (!is_array($value) || array_is_list($value)) {
             throw new RuntimeException('extension_events_invalid');
@@ -329,7 +329,7 @@ final class KuaizCmsExtensionManifest
         return ['subscribes' => $subscribes, 'publishes' => $publishes];
     }
 
-    private static function eventList(mixed $value): array
+    private static function eventList($value): array
     {
         $events = self::stringList($value, 32, 'extension_event_list_invalid');
         foreach ($events as $event) {
@@ -341,7 +341,7 @@ final class KuaizCmsExtensionManifest
         return $events;
     }
 
-    private static function themeSlots(mixed $value, string $extensionId): array
+    private static function themeSlots($value, string $extensionId): array
     {
         $slots = self::stringList($value, 32, 'extension_theme_slots_invalid');
         foreach ($slots as $slot) {
@@ -354,7 +354,7 @@ final class KuaizCmsExtensionManifest
         return $slots;
     }
 
-    private static function contentTypes(mixed $value): array
+    private static function contentTypes($value): array
     {
         if (!is_array($value) || !array_is_list($value) || count($value) > 32) {
             throw new RuntimeException('extension_content_types_invalid');
@@ -397,7 +397,7 @@ final class KuaizCmsExtensionManifest
         return $result;
     }
 
-    private static function fields(mixed $value): array
+    private static function fields($value): array
     {
         if (!is_array($value) || !array_is_list($value)
             || $value === [] || count($value) > 64) {
@@ -439,7 +439,7 @@ final class KuaizCmsExtensionManifest
         return $result;
     }
 
-    private static function dataPolicy(mixed $value): array
+    private static function dataPolicy($value): array
     {
         if (!is_array($value) || array_is_list($value)) {
             throw new RuntimeException('extension_data_policy_invalid');
@@ -476,7 +476,7 @@ final class KuaizCmsExtensionManifest
         ];
     }
 
-    private static function network(mixed $value): array
+    private static function network($value): array
     {
         if (!is_array($value) || array_is_list($value)) {
             throw new RuntimeException('extension_network_invalid');
@@ -511,7 +511,7 @@ final class KuaizCmsExtensionManifest
     }
 
     private static function text(
-        mixed $value,
+        $value,
         int $maximumCharacters,
         string $error,
         bool $required = true
@@ -527,7 +527,7 @@ final class KuaizCmsExtensionManifest
         return $value;
     }
 
-    private static function enum(mixed $value, array $allowed, string $error): string
+    private static function enum($value, array $allowed, string $error): string
     {
         if (!is_string($value) || !in_array($value, $allowed, true)) {
             throw new RuntimeException($error);
@@ -536,7 +536,7 @@ final class KuaizCmsExtensionManifest
     }
 
     private static function stringList(
-        mixed $value,
+        $value,
         int $maximum,
         string $error,
         bool $allowEmpty = true
@@ -557,7 +557,7 @@ final class KuaizCmsExtensionManifest
         return $result;
     }
 
-    private static function canonicalValue(mixed $value): mixed
+    private static function canonicalValue($value)
     {
         if (!is_array($value)) {
             return $value;

@@ -60,7 +60,7 @@ final class KuaizCmsAdminApplication
         }
         try {
             KuaizCmsAuth::verifyCsrf($session, $csrfToken);
-        } catch (RuntimeException) {
+        } catch (RuntimeException $ignored) {
             return self::loginPage('登录状态已失效，请重新登录。', 401, self::expiredCookies());
         }
 
@@ -352,11 +352,13 @@ final class KuaizCmsAdminApplication
             . '<button class="button" type="submit" name="intent" value="publish">保存并发布</button>';
         $stateActions = '';
         if ($persisted) {
-            $operations = match ($entry['status']) {
-                'archived' => [['restore', '恢复为草稿']],
-                'published' => [['unpublish', '下线'], ['archive', '归档']],
-                default => [['publish', '发布当前草稿'], ['archive', '归档']],
-            };
+            if ($entry['status'] === 'archived') {
+                $operations = [['restore', '恢复为草稿']];
+            } elseif ($entry['status'] === 'published') {
+                $operations = [['unpublish', '下线'], ['archive', '归档']];
+            } else {
+                $operations = [['publish', '发布当前草稿'], ['archive', '归档']];
+            }
             foreach ($operations as [$operation, $label]) {
                 $stateActions .= '<form method="post" action="/admin/content/state">'
                     . self::hidden('_csrf', $csrfToken) . self::hidden('id', (string)$entry['id'])
@@ -859,7 +861,7 @@ final class KuaizCmsAdminApplication
             . '<button class="text-button" type="submit">退出</button></form></div>';
     }
 
-    private static function field(array $field, mixed $value, array $mediaItems): string
+    private static function field(array $field, $value, array $mediaItems): string
     {
         $key = (string)$field['key'];
         $type = (string)$field['type'];
@@ -889,12 +891,8 @@ final class KuaizCmsAdminApplication
             $control = '<select name="' . $name . '"><option value="0"' . $selectedFalse
                 . '>否</option><option value="1"' . $selectedTrue . '>是</option></select>';
         } else {
-            $inputType = match ($type) {
-                'number' => 'number',
-                'date' => 'date',
-                'url' => 'url',
-                default => 'text',
-            };
+            $inputTypes = ['number' => 'number', 'date' => 'date', 'url' => 'url'];
+            $inputType = $inputTypes[$type] ?? 'text';
             $step = $type === 'number' ? ' step="any"' : '';
             $placeholder = $type === 'datetime' ? ' placeholder="例如 2026-08-06T14:30:00+08:00"' : '';
             $control = '<input type="' . $inputType . '" name="' . $name . '" value="'
@@ -904,7 +902,7 @@ final class KuaizCmsAdminApplication
         return '<label>' . $label . $requiredText . $control . '</label>';
     }
 
-    private static function contentPayload(array $type, mixed $submitted): array
+    private static function contentPayload(array $type, $submitted): array
     {
         if (!is_array($submitted) || array_is_list($submitted)) {
             throw new RuntimeException('cms_admin_content_fields_invalid');
@@ -965,14 +963,19 @@ final class KuaizCmsAdminApplication
 
     private static function rolesForMutation(string $path): array
     {
-        return match ($path) {
-            '/admin/logout' => ['admin', 'editor', 'viewer'],
+        if ($path === '/admin/logout') {
+            return ['admin', 'editor', 'viewer'];
+        }
+        if (in_array($path, [
             '/admin/content/save', '/admin/content/state',
-            '/admin/media/upload', '/admin/media/update', '/admin/media/state'
-                => ['admin', 'editor'],
-            '/admin/settings', '/admin/themes/activate' => ['admin'],
-            default => throw new RuntimeException('cms_auth_role_forbidden'),
-        };
+            '/admin/media/upload', '/admin/media/update', '/admin/media/state',
+        ], true)) {
+            return ['admin', 'editor'];
+        }
+        if (in_array($path, ['/admin/settings', '/admin/themes/activate'], true)) {
+            return ['admin'];
+        }
+        throw new RuntimeException('cms_auth_role_forbidden');
     }
 
     private static function requiredStorageRoot(?string $storageRoot): string
@@ -1151,18 +1154,21 @@ final class KuaizCmsAdminApplication
     private static function message(RuntimeException $error): string
     {
         $code = explode(':', $error->getMessage(), 2)[0];
-        return match ($code) {
+        $messages = [
             'cms_auth_setup_token_invalid' => '一次性启用码不正确。',
             'cms_auth_username_invalid' => '登录名格式不正确。',
             'cms_auth_password_invalid' => '密码至少需要 20 个字符。',
             'cms_auth_credentials_invalid' => '登录名或密码不正确。',
             'cms_auth_rate_limited' => '尝试次数过多，请 15 分钟后再试。',
-            'cms_auth_role_forbidden', 'cms_auth_admin_required' => '当前账号没有执行此操作的权限。',
-            'cms_auth_csrf_invalid', 'cms_auth_session_invalid' => '登录状态已失效，请重新登录。',
+            'cms_auth_role_forbidden' => '当前账号没有执行此操作的权限。',
+            'cms_auth_admin_required' => '当前账号没有执行此操作的权限。',
+            'cms_auth_csrf_invalid' => '登录状态已失效，请重新登录。',
+            'cms_auth_session_invalid' => '登录状态已失效，请重新登录。',
             'cms_auth_login_csrf_invalid' => '登录页面已过期，请重新填写。',
             'cms_admin_password_confirmation_mismatch' => '两次输入的密码不一致。',
             'cms_content_required_field_missing' => '请填写所有必填内容。',
-            'cms_content_field_invalid', 'cms_admin_content_fields_invalid' => '部分内容格式不正确，请检查后重试。',
+            'cms_content_field_invalid' => '部分内容格式不正确，请检查后重试。',
+            'cms_admin_content_fields_invalid' => '部分内容格式不正确，请检查后重试。',
             'cms_content_media_not_found' => '选择的图片不存在。',
             'cms_content_entry_not_found' => '这条内容不存在或已经不可用。',
             'cms_content_archived_publish_forbidden' => '请先恢复已归档内容，再发布。',
@@ -1170,41 +1176,38 @@ final class KuaizCmsAdminApplication
             'cms_media_upload_size_invalid' => '图片文件过大，最大支持 12MB。',
             'cms_media_type_unsupported' => '只支持 JPG、PNG 和 WebP 图片。',
             'cms_media_dimensions_invalid' => '图片尺寸或像素数量超过安全限制。',
-            'cms_media_image_invalid', 'cms_media_decode_failed' => '图片内容损坏或格式不正确。',
+            'cms_media_image_invalid' => '图片内容损坏或格式不正确。',
+            'cms_media_decode_failed' => '图片内容损坏或格式不正确。',
             'cms_media_in_use' => '这张图片仍被当前内容使用，暂时不能归档。',
-            'cms_media_image_runtime_missing', 'cms_media_decoder_missing' => '主机缺少图片处理能力，请联系服务商启用 PHP GD。',
-            'cms_media_upload_failed', 'cms_media_upload_invalid' => '图片上传没有完成，请重新选择文件。',
-            'cms_site_name_invalid', 'cms_site_description_invalid' => '请完整填写网站名称和网站介绍。',
+            'cms_media_image_runtime_missing' => '主机缺少图片处理能力，请联系服务商启用 PHP GD。',
+            'cms_media_decoder_missing' => '主机缺少图片处理能力，请联系服务商启用 PHP GD。',
+            'cms_media_upload_failed' => '图片上传没有完成，请重新选择文件。',
+            'cms_media_upload_invalid' => '图片上传没有完成，请重新选择文件。',
+            'cms_site_name_invalid' => '请完整填写网站名称和网站介绍。',
+            'cms_site_description_invalid' => '请完整填写网站名称和网站介绍。',
             'cms_site_language_invalid' => '网站语言格式不正确，例如 zh-Hans-CN、en-US 或 ar-SA。',
             'cms_site_direction_invalid' => '文字方向设置不正确。',
             'cms_site_base_url_invalid' => '正式网址必须是 HTTPS 根域名，例如 https://example.com。',
             'cms_site_cover_invalid' => '选择的首页图片不存在或已经归档。',
             'cms_site_indexing_invalid' => '搜索引擎收录设置不正确。',
             'theme_not_installed' => '选择的网站风格不存在，请刷新页面后重试。',
-            'theme_id_invalid', 'theme_version_invalid' => '网站风格信息不正确，请刷新页面后重试。',
+            'theme_id_invalid' => '网站风格信息不正确，请刷新页面后重试。',
+            'theme_version_invalid' => '网站风格信息不正确，请刷新页面后重试。',
             'theme_extension_slot_unavailable' => '这个风格需要尚未安装的扩展，暂时不能启用。',
-            default => '输入内容有误或当前操作无法完成。',
-        };
+        ];
+        return $messages[$code] ?? '输入内容有误或当前操作无法完成。';
     }
 
     private static function statusLabel(string $status): string
     {
-        return match ($status) {
-            'draft' => '草稿',
-            'published' => '已发布',
-            'archived' => '已归档',
-            default => '未知',
-        };
+        $labels = ['draft' => '草稿', 'published' => '已发布', 'archived' => '已归档'];
+        return $labels[$status] ?? '未知';
     }
 
     private static function roleLabel(string $role): string
     {
-        return match ($role) {
-            'admin' => '管理员',
-            'editor' => '编辑',
-            'viewer' => '只读成员',
-            default => '成员',
-        };
+        $labels = ['admin' => '管理员', 'editor' => '编辑', 'viewer' => '只读成员'];
+        return $labels[$role] ?? '成员';
     }
 
     private static function byteSize(int $bytes): string
