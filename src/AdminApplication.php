@@ -128,7 +128,12 @@ final class KuaizCmsAdminApplication
             }
             if ($method === 'GET' && $path === '/admin/settings') {
                 KuaizCmsAuth::authorize($pdo, $token, ['admin']);
-                return self::settingsPage($pdo, $session, $csrfToken);
+                return self::settingsPage(
+                    $pdo,
+                    $session,
+                    $csrfToken,
+                    self::queryText($query, 'welcome', 1, true) === '1'
+                );
             }
             if ($method === 'GET' && $path === '/admin') {
                 KuaizCmsAuth::authorize($pdo, $token, ['admin', 'editor', 'viewer']);
@@ -164,7 +169,9 @@ final class KuaizCmsAdminApplication
                 $password,
                 self::clientKey($server)
             );
-            return self::redirect('/admin', self::loginCookies($login));
+            $destination = KuaizCmsSiteSettings::get($pdo) === null
+                ? '/admin/settings?welcome=1' : '/admin';
+            return self::redirect($destination, self::loginCookies($login));
         } catch (RuntimeException $error) {
             return self::setupPage(self::message($error), 422);
         }
@@ -189,7 +196,9 @@ final class KuaizCmsAdminApplication
                 self::postText($post, 'password', 1024, false),
                 self::clientKey($server)
             );
-            return self::redirect('/admin', self::loginCookies($login));
+            $destination = KuaizCmsSiteSettings::get($pdo) === null
+                ? '/admin/settings?welcome=1' : '/admin';
+            return self::redirect($destination, self::loginCookies($login));
         } catch (RuntimeException $error) {
             $status = $error->getMessage() === 'cms_auth_rate_limited' ? 429 : 401;
             return self::loginPage(self::message($error), $status, self::expiredCookies());
@@ -206,6 +215,7 @@ final class KuaizCmsAdminApplication
         if ($status === '') {
             $status = null;
         }
+        $onboardingReady = self::queryText($query, 'onboarding', 8, true) === 'ready';
         $types = KuaizCmsContentRepository::contentTypes($pdo);
         $entries = KuaizCmsContentRepository::adminEntries($pdo, null, null, $status, 100, 0);
         $canEdit = in_array($session['user']['role'], ['admin', 'editor'], true);
@@ -244,13 +254,17 @@ final class KuaizCmsAdminApplication
             . '<a href="/admin?status=draft">草稿</a>'
             . '<a href="/admin?status=published">已发布</a>'
             . '<a href="/admin?status=archived">已归档</a></nav>';
+        $onboardingNotice = $onboardingReady
+            ? '<div class="notice"><b>网站基础设置已保存。</b> 现在可以创建第一条内容；'
+                . '确认页面、文字和图片全部准备好以后，再到网站设置中开启搜索引擎收录。</div>'
+            : '';
         $body = '<section class="hero"><div><p class="eyebrow">内容总览</p><h1>管理网站内容</h1>'
             . '<p>草稿修改不会提前出现在网站上，发布后才会替换线上版本。</p>'
             . '<p class="hero-action"><a class="button secondary" href="/admin/media">打开素材库</a> '
             . ($session['user']['role'] === 'admin'
                 ? '<a class="button secondary" href="/admin/settings">网站设置</a>' : '')
             . '</p></div>'
-            . self::userCard($session, $csrfToken) . '</section>'
+            . self::userCard($session, $csrfToken) . '</section>' . $onboardingNotice
             . '<section class="panel"><div class="panel-head"><h2>可用内容类型</h2></div><ul class="types">'
             . $typeLinks . '</ul></section>'
             . '<section class="panel"><div class="panel-head"><h2>内容</h2>' . $filter . '</div>'
@@ -620,9 +634,11 @@ final class KuaizCmsAdminApplication
     private static function settingsPage(
         PDO $pdo,
         array $session,
-        string $csrfToken
+        string $csrfToken,
+        bool $welcome = false
     ): array {
-        $settings = KuaizCmsSiteSettings::get($pdo) ?? [
+        $savedSettings = KuaizCmsSiteSettings::get($pdo);
+        $settings = $savedSettings ?? [
             'site_name' => '',
             'tagline' => '',
             'description' => '',
@@ -645,9 +661,15 @@ final class KuaizCmsAdminApplication
         $publicLink = $settings['base_url'] === '' ? ''
             : '<a class="button secondary" href="' . self::h($settings['base_url'])
                 . '" target="_blank" rel="noopener">打开网站</a>';
+        $onboarding = ($welcome || $savedSettings === null)
+            ? '<div class="notice"><b>先完成网站的基础设置。</b> 填写网站名称、唯一语言和正式网址；'
+                . '新站会继续禁止搜索引擎收录，等内容准备好后再由你手动开启。</div>'
+            : '';
+        $submitLabel = $savedSettings === null ? '保存并进入内容管理' : '保存网站设置';
         $body = '<section class="hero compact"><div><p class="eyebrow">单站单语言</p><h1>网站设置</h1>'
             . '<p><a href="/admin">← 返回内容列表</a></p></div>'
-            . self::userCard($session, $csrfToken) . '</section><section class="panel editor">'
+            . self::userCard($session, $csrfToken) . '</section>' . $onboarding
+            . '<section class="panel editor">'
             . '<form method="post" action="/admin/settings">' . self::hidden('_csrf', $csrfToken)
             . '<label>网站名称 <span class="required">必填</span><input name="site_name" maxlength="120" value="'
             . self::h($settings['site_name']) . '" required></label>'
@@ -673,7 +695,8 @@ final class KuaizCmsAdminApplication
             . $checked . '><span>允许搜索引擎收录这个正式网站</span><small>新站默认关闭。预览站和测试站不要开启。</small></label>'
             . '<div class="notice">开启收录后，系统会输出 canonical、robots.txt、sitemap.xml 和结构化数据；关闭时所有页面同时发送 noindex。</div>'
             . '<div class="form-actions">' . $publicLink
-            . '<button class="button" type="submit">保存网站设置</button></div></form></section>';
+            . '<button class="button" type="submit">' . $submitLabel
+            . '</button></div></form></section>';
         return self::page('网站设置', $body);
     }
 
@@ -699,7 +722,7 @@ final class KuaizCmsAdminApplication
             'contact_summary' => self::postText($post, 'contact_summary', 4000, true),
             'cover_media_id' => $cover === '' ? null : (int)$cover,
         ], 'user:' . $session['user']['id']);
-        return self::redirect('/admin/settings');
+        return self::redirect('/admin?onboarding=ready');
     }
 
     private static function setupPage(string $error = '', int $status = 200): array

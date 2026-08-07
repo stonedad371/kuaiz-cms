@@ -9,11 +9,13 @@ require_once $root . '/src/Auth.php';
 require_once $root . '/src/ExtensionManifest.php';
 require_once $root . '/src/ExtensionRegistry.php';
 require_once $root . '/src/ContentRepository.php';
+require_once $root . '/src/MediaRepository.php';
 require_once $root . '/src/ThemeManifest.php';
 require_once $root . '/src/ThemeRegistry.php';
 require_once $root . '/src/SiteSettings.php';
 require_once $root . '/src/ThemeRenderer.php';
 require_once $root . '/src/PublicApplication.php';
+require_once $root . '/src/AdminApplication.php';
 
 function smoke_require(bool $condition, string $message): void
 {
@@ -69,12 +71,47 @@ try {
         true
     );
     $setupToken = KuaizCmsAuth::provisionSetupToken($pdo);
-    KuaizCmsAuth::ensureInitialAdmin(
+    $setup = KuaizCmsAdminApplication::handle(
         $pdo,
-        'owner@example.com',
-        'Smoke Test Owner',
-        'Correct horse battery staple!',
-        $setupToken
+        [
+            'REQUEST_METHOD' => 'POST',
+            'REQUEST_URI' => '/admin/setup',
+            'REMOTE_ADDR' => '127.0.0.1',
+        ],
+        [],
+        [
+            'setup_token' => $setupToken,
+            'username' => 'owner@example.com',
+            'display_name' => 'Smoke Test Owner',
+            'password' => 'Correct horse battery staple!',
+            'password_confirmation' => 'Correct horse battery staple!',
+        ],
+        []
+    );
+    smoke_require($setup['status'] === 303, 'smoke_admin_setup_failed');
+    smoke_require(
+        ($setup['headers']['Location'] ?? '') === '/admin/settings?welcome=1',
+        'smoke_onboarding_redirect_failed'
+    );
+    $cookies = [];
+    foreach ($setup['headers']['Set-Cookie'] as $cookieHeader) {
+        [$pair] = explode(';', $cookieHeader, 2);
+        [$cookieName, $cookieValue] = explode('=', $pair, 2);
+        $cookies[$cookieName] = $cookieValue;
+    }
+    $onboarding = KuaizCmsAdminApplication::handle(
+        $pdo,
+        ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/admin/settings?welcome=1'],
+        ['welcome' => '1'],
+        [],
+        $cookies,
+        [],
+        $data
+    );
+    smoke_require($onboarding['status'] === 200, 'smoke_onboarding_page_failed');
+    smoke_require(
+        str_contains($onboarding['body'], '保存并进入内容管理'),
+        'smoke_onboarding_action_failed'
     );
     KuaizCmsSiteSettings::save($pdo, [
         'site_name' => 'Kuaiz CMS Smoke Test',
