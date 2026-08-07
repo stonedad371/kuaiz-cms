@@ -6,6 +6,8 @@ require_once dirname(__DIR__) . '/src/Maintenance.php';
 require_once dirname(__DIR__) . '/src/Auth.php';
 require_once dirname(__DIR__) . '/src/ContentRepository.php';
 require_once dirname(__DIR__) . '/src/MediaRepository.php';
+require_once dirname(__DIR__) . '/src/ExtensionManifest.php';
+require_once dirname(__DIR__) . '/src/ExtensionRegistry.php';
 require_once dirname(__DIR__) . '/src/ThemeManifest.php';
 require_once dirname(__DIR__) . '/src/ThemeRegistry.php';
 require_once dirname(__DIR__) . '/src/SiteSettings.php';

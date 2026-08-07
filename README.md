@@ -3,12 +3,21 @@
 一个运行在你自己 PHP 主机上的轻量 CMS。网站可以独立编辑、发布和备份；需要持续运营时，
 再选择连接快智 AI 自动运营服务。
 
-> 当前版本是 Developer Preview，适合开发、审查和测试，不建议直接承载正式业务。正式签名
-> 安装器和受支持版本只会在 [cms.kuaiz.net/download/](https://cms.kuaiz.net/download/) 发布。
+> 当前版本是开发测试版，适合了解产品和搭建测试站，不建议直接承载重要业务。下载和版本
+> 说明只以 [cms.kuaiz.net/download/](https://cms.kuaiz.net/download/) 为准。
 
-English summary: Kuaiz CMS Community is a lightweight, self-hosted PHP and SQLite CMS with
-local editing, publishing, version history, backups, a machine-readable Theme SDK and a
-restricted Extension SDK. The current branch is a developer preview, not a supported release.
+## 用 install.php 安装
+
+普通用户不需要下载或解压源码：
+
+1. 从 [cms.kuaiz.net/download/](https://cms.kuaiz.net/download/) 下载 `install.php`；
+2. 把它上传到空网站的根目录；
+3. 访问 `https://你的域名/install.php`，填写网站和管理员信息，点击安装。
+
+安装页面会自动检查 PHP、HTTPS 和目录权限，把账号、内容与备份放到公开目录之外，并在成功
+后自动删除自身。发现已有首页或关键设置文件时，安装会停止，不会直接覆盖。
+
+完整说明见 [cms.kuaiz.net/docs/#install-file](https://cms.kuaiz.net/docs/#install-file)。
 
 ## 为什么做这个 CMS
 
