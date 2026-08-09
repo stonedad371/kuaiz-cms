@@ -9,7 +9,7 @@ final class KuaizCmsAuth
     private const LOGIN_WINDOW_SECONDS = 900;
     private const MAX_FAILED_ATTEMPTS = 8;
     private const MAX_ACTIVE_SESSIONS = 20;
-    private const MINIMUM_PASSWORD_BYTES = 20;
+    private const MINIMUM_PASSWORD_BYTES = 12;
     private const DUMMY_PASSWORD_HASH =
         '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.';
 

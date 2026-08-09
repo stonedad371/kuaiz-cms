@@ -844,9 +844,9 @@ final class KuaizCmsAdminApplication
             . '<label>一次性启用码<input name="setup_token" maxlength="64" autocomplete="one-time-code" required></label>'
             . '<label>登录名或邮箱<input name="username" maxlength="128" autocomplete="username" required></label>'
             . '<label>显示名称<input name="display_name" maxlength="80" autocomplete="name" required></label>'
-            . '<label>管理员密码<input type="password" name="password" maxlength="1024" autocomplete="new-password" required>'
-            . '<small>至少 20 个字符，建议使用一整句容易记住的话。</small></label>'
-            . '<label>再次输入密码<input type="password" name="password_confirmation" maxlength="1024" autocomplete="new-password" required></label>'
+            . '<label>管理员密码<input type="password" name="password" minlength="12" maxlength="1024" autocomplete="new-password" required>'
+            . '<small>至少 12 位。也可以在 install.php 安装页面点“自动生成 16 位”。</small></label>'
+            . '<label>再次输入密码<input type="password" name="password_confirmation" minlength="12" maxlength="1024" autocomplete="new-password" required></label>'
             . '<button class="button wide" type="submit">创建管理员并进入后台</button></form></section>';
         return self::page('启用后台', $body, $status);
     }
@@ -1214,7 +1214,7 @@ final class KuaizCmsAdminApplication
         $messages = [
             'cms_auth_setup_token_invalid' => '一次性启用码不正确。',
             'cms_auth_username_invalid' => '登录名格式不正确。',
-            'cms_auth_password_invalid' => '密码至少需要 20 个字符。',
+            'cms_auth_password_invalid' => '密码至少需要 12 位。',
             'cms_auth_credentials_invalid' => '登录名或密码不正确。',
             'cms_auth_rate_limited' => '尝试次数过多，请 15 分钟后再试。',
             'cms_auth_role_forbidden' => '当前账号没有执行此操作的权限。',
