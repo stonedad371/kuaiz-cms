@@ -3,6 +3,9 @@
 /.vscode/
 /artifacts/
 /var/
+/.venv/
+/.pytest_cache/
+__pycache__/
 *.log
 *.sqlite
 *.sqlite-journal

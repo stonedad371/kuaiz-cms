@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>使用说明｜快智 CMS</title>
+  <meta name="description" content="下载 install.php，上传到网站根目录，再访问域名/install.php 完成快智 CMS 安装。">
+  <meta name="theme-color" content="#121b17">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="https://cms.kuaiz.net/docs/">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="使用说明｜快智 CMS">
+  <meta property="og:description" content="安装前准备、页面设计、备份恢复和主机要求。">
+  <meta property="og:url" content="https://cms.kuaiz.net/docs/">
+  <meta property="og:image" content="https://cms.kuaiz.net/og-public.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/subpage.css">
+  <script defer src="/release.js?v=20260807-user-first"></script>
+</head>
+<body class="subpage-body">
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <header class="site-header subpage-header">
+    <div class="shell nav-wrap">
+      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span><b>快智 CMS</b><small>KUAIZ CMS</small></span></a>
+      <nav class="sub-nav" aria-label="使用说明导航"><a href="/">产品首页</a><a href="/docs/" aria-current="page">使用说明</a><a href="/download/">下载</a><a href="/releases/">版本记录</a><a href="/security/">安全</a></nav>
+      <a class="nav-cta" href="https://kuaiz.net/start">需要我们做网站 ↗</a>
+    </div>
+  </header>
+  <main id="main">
+    <section class="sub-hero">
+      <div class="shell"><span class="kicker">使用说明</span><h1>一个 install.php，<br>三步完成安装</h1><p>不用解压文件，也不用运行命令。下载 install.php，上传到网站根目录，再用浏览器打开它。</p><div class="sub-hero-actions"><a class="button primary" href="#install-file">查看安装步骤 ↓</a><a class="button secondary" href="/download/">下载 install.php →</a></div></div>
+    </section>
+    <div class="status-strip"><div class="shell"><i></i><b data-release-pending>开发测试版源码已公开</b><b data-release-ready hidden><span data-release-status>开发测试版</span> · <span data-release-version></span></b><span data-release-pending>懂技术的用户可以在 GitHub 查看，官网下载暂未开放。</span><span data-release-ready hidden>适合了解和测试，暂不建议用于重要业务。</span></div></div>
+    <section class="doc-section">
+      <div class="shell doc-layout">
+        <aside class="doc-toc"><b>本页内容</b><a href="#boundary">产品说明</a><a href="#quickstart">安装前准备</a><a href="#install-file">三步安装</a><a href="#first-login">填写安装页面</a><a href="#repair-admin">修复页面入口</a><a href="#theme-sdk">设计页面</a><a href="#extension-sdk">增加功能</a><a href="#operations">备份恢复</a><a href="#hosting">主机要求</a><a href="#release">核对下载</a></aside>
+        <div class="doc-content">
+          <section class="doc-block" id="boundary"><span class="kicker">01 · 产品说明</span><h2>自己的网站，可以独立使用</h2><p class="doc-lead">账号、内容、图片、发布记录和备份都放在你自己的主机上。AI 运营是可选服务，不开通也不影响网站访问和人工更新。</p><ul class="check-list"><li>公开网站、后台编辑和备份不依赖快智一直在线</li><li>一个网站使用一种主要语言，服务不同市场时分别建站</li><li>页面样式只能改变展示，不能读取密码或改动重要数据</li><li>源码已经公开，可以按照开源许可证自行使用和修改</li></ul><div class="callout"><b>当前是开发测试版</b>适合了解产品、搭建测试站和参与改进；需要长期稳定运行的重要项目，请等待稳定版或先联系我们评估。</div></section>
+
+          <section class="doc-block" id="quickstart"><span class="kicker">02 · 安装前准备</span><h2>准备一个空网站和能打开的域名</h2><p>安装文件会自己检查主机。你只需要能在主机面板上传文件，并知道这个域名对应的网站根目录。</p><ul class="check-list"><li>域名已经能正常打开，HTTP 和 HTTPS 都可以</li><li>网站根目录里没有需要保留的旧首页</li><li>主机使用 PHP 7.4 或更高版本</li><li>主机允许程序在网站根目录写入文件</li></ul><div class="callout"><b>上一级目录不可写也能装</b>安装器会优先把数据库放在网站根目录外；主机不允许时，会自动改用根目录内只供程序使用的独立位置。</div><div class="callout"><b>没有 HTTPS 也能装</b>安装页会显示密码传输提醒，但不会拦住。请避免在公共 Wi-Fi 下安装，有条件时再开启 HTTPS。</div><div class="callout"><b>没有 WebP 也能装</b>主机只要开启常见的 GD 图片功能即可；不支持 WebP 时，系统会自动使用 JPG 或 PNG。</div><div class="callout"><b>主机面板怎么选</b>如果有 PHP 8.2 或更高版本，优先选新版本；如果最高只有 PHP 7.4，也可以安装。PHP 5.x 到 7.3 不支持。</div><div class="callout"><b>不确定也可以先上传</b>打开 install.php 后，它会自动检查主机；不满足要求时只显示原因，不会开始安装。</div></section>
+
+          <section class="doc-block" id="install-file"><span class="kicker">03 · 三步安装</span><h2>下载、上传、打开</h2><div class="timeline"><div><h3>下载 install.php</h3><p>从快智 CMS 官网下载。文件名应当是 <code>install.php</code>，不需要解压。</p></div><div><h3>上传到网站根目录</h3><p>在主机面板的文件管理器中，把它放到这个域名存放首页文件的目录。</p></div><div><h3>打开安装页面</h3><p>浏览器访问 <code>你的域名/install.php</code>。主机有 HTTPS 就使用 HTTPS，没有也可以直接用 HTTP 打开。</p></div></div><div class="callout warning"><b>上传后请马上打开</b>安装页面用于空网站。发现已有首页或关键设置文件时，它会停止并保护原文件，不会强行覆盖。</div></section>
+
+          <section class="doc-block" id="first-login"><span class="kicker">04 · 填写安装页面</span><h2>一次填写，安装完成直接进后台</h2><div class="timeline"><div><h3>填写网站信息</h3><p>填写网站名称、主要语言和业务介绍。业务介绍建议 50–200 字，最多 500 字，输入框下方会显示已经填写的字数。</p></div><div><h3>创建管理员</h3><p>填写管理员邮箱和称呼。密码可以自己填写，至少 12 位；也可以点“自动生成 16 位”，页面会自动填好两次。记得点“复制密码”并保存到安全的地方。</p></div><div><h3>点击安装</h3><p>程序会建立网站、放好数据并创建管理员，不需要安装码或命令行。</p></div><div><h3>打开网站后台</h3><p>完成后点击“打开网站后台”，以后固定访问 <code>你的域名/admin/</code>。</p></div><div><h3>添加并预览内容</h3><p>先创建几篇测试内容，检查首页、列表页、详情页和手机显示。</p></div><div><h3>准备好后再允许搜索收录</h3><p>新网站默认不让搜索引擎收录。内容和联系方式检查完，再到网站设置里开启。</p></div></div><div class="callout"><b>安装文件会自动清理</b>安装成功后，install.php 会尝试自动删除。如果页面提醒无法删除，请回到主机文件管理器手动删除。</div></section>
+
+          <section class="doc-block" id="repair-admin"><span class="kicker">页面打不开</span><h2>看到 Not Found，重新上传安装文件修复</h2><p>这通常是主机没有开启网址转发，不代表网站内容丢了。使用最新版安装文件，就能一起补好公开内容页和后台入口。</p><div class="timeline"><div><h3>重新下载 install.php</h3><p>从官网下载最新版，不需要重新下载网站压缩包。</p></div><div><h3>上传到原来的网站根目录</h3><p>和现有 index.php 放在同一目录，不要删除数据库、图片或其他文件。</p></div><div><h3>再次访问“你的域名/install.php”</h3><p>页面找到现有网站后，点击“修复并打开网站后台”。</p></div><div><h3>重新打开原来的地址</h3><p>原有内容页和后台都能继续打开，管理员、设置、内容和图片也会保留。</p></div></div><div class="callout"><b>修复不是重装</b>安装文件只更新程序和页面入口，不会清空现有网站数据；完成后也会自动删除自己。</div></section>
+
+          <section class="doc-block" id="theme-sdk"><span class="kicker">05 · 设计页面</span><h2>换外观，不动你的内容</h2><p>可以自己设计，也可以让 AI 帮忙安排首页、列表页和详情页。系统会检查页面在手机和电脑上是否正常，并限制页面样式接触账号、密码和重要数据。</p><div class="doc-cards"><article class="doc-card"><span>给页面制作人员</span><h3>页面规则文件</h3><p>写清楚可用的页面模块、配色、排版和内容位置。</p><a href="/contracts/theme-manifest-v2.json">查看详细规则 →</a></article><article class="doc-card"><span>上线前要检查</span><h3>各种内容都不能乱版</h3><p>同时检查内容很多、很少或为空，以及手机和电脑浏览。</p><a href="/#theme">了解页面设计方式 →</a></article></div></section>
+
+          <section class="doc-block" id="extension-sdk"><span class="kicker">06 · 增加功能</span><h2>用到什么，再增加什么</h2><p>门店、课程、房源、案例和团队等内容目录已经可以使用。预约、会员等功能还在准备；支付、库存和物流建议连接成熟服务。</p><div class="doc-cards"><article class="doc-card"><span>给功能制作人员</span><h3>新增功能的安全规则</h3><p>规定一项功能可以访问什么、保存什么，避免权限过大。</p><a href="/contracts/extension-manifest-v1.json">查看详细规则 →</a></article><article class="doc-card"><span>参考功能</span><h3>内容目录</h3><p>可以用来展示门店、课程、房源、案例和团队。</p><a href="https://github.com/stonedad371/kuaiz-cms/tree/main/extensions/kuaiz-directory">查看参考源码 ↗</a></article></div></section>
+
+          <section class="doc-block" id="operations"><span class="kicker">07 · 备份恢复</span><h2>重要操作前，先留一份完整备份</h2><p>平时发布内容不需要命令行。下面的命令给主机维护人员使用，分别用于检查网站、建立备份和恢复备份。</p><div class="code">php bin/cms-doctor.php
+php bin/cms-backup.php
+php bin/cms-restore.php /absolute/path/to/backup-directory --yes</div><ul class="check-list"><li>检查网站环境、数据目录和数据库是否正常</li><li>备份会包含内容、图片和完整文件清单</li><li>升级失败时尽量恢复到升级前的状态</li><li>恢复旧备份前，系统会先保存当前网站</li></ul><div class="callout"><b>把数据和程序分开放</b>数据库、图片和备份不要放在公开网页目录里。升级程序时，也不要跟着搬动客户数据。</div></section>
+
+          <section class="doc-block" id="hosting"><span class="kicker">08 · 主机要求</span><h2>哪些主机更容易安装</h2><table class="compat-table"><thead><tr><th>主机环境</th><th>当前情况</th><th>说明</th></tr></thead><tbody><tr><td>Apache + PHP 8.2+</td><td><span>推荐</span></td><td>适合新网站和正式运营，仍需满足上面的 PHP 功能和根目录权限。</td></tr><tr><td>Apache + PHP 7.4</td><td><span>已经测试</span></td><td>包括根目录上一级不可写的共享主机；正式运营时仍建议联系主机商升级。</td></tr><tr><td>OpenLiteSpeed / LiteSpeed</td><td><span>已经测试</span></td><td>安装后可能需要在主机面板刷新网址转发设置。</td></tr><tr><td>PHP 5.x – 7.3</td><td><span class="review">不支持</span></td><td>请在主机面板选择 PHP 7.4 或更高版本。</td></tr><tr><td>Nginx</td><td><span class="review">需要技术人员配置</span></td><td>不能直接照搬 Apache 设置，正式安装前请先确认。</td></tr><tr><td>IIS</td><td><span class="review">暂未支持</span></td><td>当前版本不建议使用。</td></tr></tbody></table></section>
+
+          <section class="doc-block" id="release"><span class="kicker">09 · 核对下载</span><h2>只从官网进入下载</h2><p>官网下载页会显示版本用途，并提供文件校验资料。普通用户只要确认来自 cms.kuaiz.net，并看清“开发测试版”或“稳定支持版”即可。</p><ul class="plain-list"><li>开发测试版适合体验，不建议承载重要业务</li><li>稳定支持版才会进入长期维护和安全更新范围</li><li>安装或升级前，无论什么版本都要先备份</li><li>需要核对文件的技术人员，可查看下面的版本资料</li></ul><div class="raw-links"><a href="https://github.com/stonedad371/kuaiz-cms">公开源码</a><a href="/releases/">版本记录</a><a href="/contracts/cms-manifest.json">程序文件说明</a><a href="/contracts/theme-manifest-v2.json">页面规则</a><a href="/contracts/extension-manifest-v1.json">功能规则</a><a href="/license.txt">开源许可证</a></div></section>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer class="site-footer"><div class="shell copyright"><span>© 2026 快智 CMS · 开发测试版</span><span><a href="/">产品首页</a> · <a href="/security/">安全中心</a></span></div></footer>
+</body>
+</html>

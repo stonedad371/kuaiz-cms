@@ -1,4 +1,4 @@
-name: Community CMS checks
+name: Kuaiz CMS checks
 
 on:
   push:
@@ -31,12 +31,81 @@ jobs:
           php -r "exit(
           in_array('sqlite', PDO::getAvailableDrivers(), true)
           && extension_loaded('fileinfo')
-          && extension_loaded('gd')
-          && extension_loaded('sodium')
-          && function_exists('imagewebp') ? 0 : 1);"
+          && extension_loaded('gd') ? 0 : 1);"
       - name: Check PHP syntax
         run: find . -type f -name '*.php' -not -path './var/*' -print0 | xargs -0 -n1 php -l
       - name: Run public smoke test
         run: php tests/smoke.php
       - name: Rehearse schema upgrade and refusal of newer databases
         run: php tests/upgrade.php
+
+  project:
+    name: Independent project checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, fileinfo, gd, sodium
+          coverage: none
+      - run: uv sync --frozen --dev
+      - name: Test release, installer, website, and PHP foundation
+        run: uv run pytest -q
+      - name: Validate public website
+        run: |
+          node --check website/release.js
+          uv run python scripts/validate_cms_site.py website
+      - name: Build and lint a signed installer
+        run: |
+          uv run python scripts/php_cms_release_control.py keygen \
+            --private /tmp/kuaiz-cms-release-private.pem \
+            --public /tmp/kuaiz-cms-release-public.pem
+          uv run python scripts/build_php_cms_installer.py \
+            --emit-envelope /tmp/kuaiz-cms-release-envelope.json \
+            --issued-at 1785900000
+          uv run python scripts/php_cms_release_control.py sign \
+            --private-key /tmp/kuaiz-cms-release-private.pem \
+            --input /tmp/kuaiz-cms-release-envelope.json \
+            --output /tmp/kuaiz-cms-release.token
+          uv run python scripts/build_php_cms_installer.py \
+            --output /tmp/install.php \
+            --release-token /tmp/kuaiz-cms-release.token \
+            --public-key /tmp/kuaiz-cms-release-public.pem
+          php -l /tmp/install.php
+
+  host-matrix:
+    name: ${{ matrix.server }} real install
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        server:
+          - apache74-no-rewrite
+          - apache74-restricted-parent
+          - apache74-no-webp
+          - apache74
+          - apache
+          - openlitespeed
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: uv sync --frozen --dev
+      - name: Install and use CMS through real HTTP requests
+        run: uv run python scripts/test_php_cms_host_matrix.py --server ${{ matrix.server }}

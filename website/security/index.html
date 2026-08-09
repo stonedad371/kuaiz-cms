@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>安全中心｜快智 CMS</title>
+  <meta name="description" content="了解快智 CMS 的官方下载、安全问题报告、版本维护和文件核对方式。">
+  <meta name="robots" content="index,follow">
+  <meta name="theme-color" content="#121b17">
+  <link rel="canonical" href="https://cms.kuaiz.net/security/">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="安全中心｜快智 CMS">
+  <meta property="og:description" content="官方下载、安全问题报告、版本维护和文件核对方式。">
+  <meta property="og:url" content="https://cms.kuaiz.net/security/">
+  <meta property="og:image" content="https://cms.kuaiz.net/og-public.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/subpage.css">
+  <script defer src="/release.js?v=20260807-user-first"></script>
+</head>
+<body class="subpage-body">
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <header class="site-header subpage-header"><div class="shell nav-wrap"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span><b>快智 CMS</b><small>KUAIZ CMS</small></span></a><nav class="sub-nav" aria-label="安全导航"><a href="/">产品首页</a><a href="/docs/">使用说明</a><a href="/download/">下载</a><a href="/releases/">版本记录</a><a href="/security/" aria-current="page">安全</a></nav><a class="nav-cta" href="https://kuaiz.net/start">需要我们做网站 ↗</a></div></header>
+  <main id="main">
+    <section class="sub-hero"><div class="shell"><span class="kicker">安全中心</span><h1>只从官网下载安装，<br>重要问题请私下报告</h1><p>这里告诉你哪些版本适合正式使用、怎样确认下载来源，以及发现安全问题后该怎么联系我们。</p></div></section>
+    <div class="status-strip"><div class="shell"><i></i><b data-release-pending>官网下载暂未开放</b><b data-release-ready hidden>当前可下载文件已经过检查</b><span data-release-pending>不要使用第三方提供的所谓“快智 CMS 正式版”。</span><span data-release-ready hidden>当前版本 <span data-release-version></span> · <span data-release-status></span></span></div></div>
+
+    <section class="doc-section"><div class="shell"><span class="kicker">报告安全问题</span><h2>发现问题，请先私下联系我们</h2><div class="security-grid"><article class="security-card"><i>＠</i><h3>发送邮件</h3><p>邮件主题以 <code>[Kuaiz CMS Security]</code> 开头，并写清版本号、出现问题的功能和重现步骤。</p><a class="security-email" href="mailto:support@kuaiz.net">support@kuaiz.net</a></article><article class="security-card"><i>×</i><h3>不要发送密码</h3><p>不要发送管理员密码、登录信息、客户正文或真实个人资料。请使用测试数据说明问题。</p></article><article class="security-card"><i>…</i><h3>修复前先别公开</h3><p>在确认和修复之前，请不要公开能被别人直接利用的操作步骤。</p></article></div><div class="callout warning"><b>哪些版本会持续维护</b>只有下载页明确标为“稳定支持版”的版本，才进入安全更新和升级通知范围。开发测试版适合体验，不建议承载重要业务。</div></div></section>
+
+    <section class="doc-section alt"><div class="shell download-layout"><div><span class="kicker">官方下载</span><h2>认准域名，也要看清版本用途</h2><p>请从 cms.kuaiz.net 下载 install.php。普通用户不需要手动核对长串数字，安装页面会再次检查文件是否完整。</p><ul class="check-list"><li>不从搜索广告、论坛附件或第三方网盘下载安装文件</li><li>安装前看清版本用途，不把测试版当成稳定版</li><li>只在空网站上运行 install.php</li><li>发现下载文件异常时立即停止安装并联系我们</li><li>受影响的版本可能暂时关闭下载，等待修复</li></ul></div><aside class="release-panel"><div class="release-panel-top"><b>下载安装提醒</b><span data-release-status>尚未开放</span></div><div class="release-row"><span>下载来源</span><b>cms.kuaiz.net</b></div><div class="release-row"><span>当前版本</span><b data-release-version>尚无</b></div><div class="release-row"><span>版本用途</span><b data-release-status>尚未开放</b></div><div class="release-row"><span>安装文件</span><b>install.php</b></div><div class="release-row"><span>文件大小</span><b data-release-installer-size>—</b></div><p class="release-reassurance" data-release-ready hidden><i>✓</i><span><b>文件已由官网检查</b>安装页面打开后还会再次检查。</span></p><div class="raw-links" data-release-ready hidden><a href="/download/">前往下载</a><a href="/docs/#install-file">安装说明</a></div></aside></div></section>
+
+    <section class="doc-section"><div class="shell"><span class="kicker">需要时再看</span><h2>技术人员可以进一步核对</h2><p class="doc-lead">下面的信息默认收起，不影响普通用户下载安装。</p><details class="technical-details" data-release-ready hidden><summary>展开文件核对资料</summary><div class="technical-details-body"><div class="technical-code"><span>发行公钥指纹</span><b class="hash-value" data-release-fingerprint></b></div><div class="technical-code" data-release-installer-ready hidden><span>安装文件 SHA-256</span><b class="hash-value" data-release-installer-sha256></b></div><div class="timeline"><div><h3>先确认下载来源</h3><p>安装文件应从 cms.kuaiz.net 下载。</p></div><div><h3>再核对文件</h3><p>本页显示的 SHA-256 应与下载文件一致。</p></div><div><h3>最后核对版本</h3><p>版本号、文件大小和发布时间都应一致；任何一项不同都不要继续安装。</p></div></div><div class="raw-links"><a href="/trust/cms-release-public.pem">发行公钥</a><a href="/trust/cms-release-key.json">公钥资料</a><a data-release-metadata-link>版本技术资料</a></div></div></details></div></section>
+  </main>
+  <footer class="site-footer"><div class="shell copyright"><span>© 2026 快智 CMS · 安全中心</span><span><a href="/releases/">版本记录</a> · <a href="/download/">下载</a></span></div></footer>
+</body>
+</html>

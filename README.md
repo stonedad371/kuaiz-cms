@@ -27,6 +27,14 @@
 - Theme 只负责页面表现，不能执行 PHP、读取数据库或绕过 SEO 规则；
 - AI 自动运营是可选商业服务，不是 CMS 正常运行的前置条件。
 
+## 与快智引擎的关系
+
+快智 CMS 和快智引擎是两个独立产品。快智引擎继续提供网页 FAQ AI 客服、企业微信自动
+客服和 AI 静态建站；快智 CMS 则供用户安装到自己的 PHP 主机，使用独立账号、数据、后台、
+版本和发布流程。两者当前只共享快智品牌以及 `cms.kuaiz.net` 官网入口，不共享代码、数据库、
+部署或登录状态。未来的 AI 建站能力只能通过公开、可关闭的接口或扩展连接 CMS，不能成为
+CMS 公开网站和人工编辑的运行前提。
+
 ## 已包含的能力
 
 - 本地管理员、编辑和只读账号，登录限流、安全会话与操作审计；
@@ -68,6 +76,15 @@ php -S 127.0.0.1:8080 -t public public/index.php
 ```bash
 KUAIZ_CMS_DATA_DIR=/absolute/private/path php bin/cms-init.php
 KUAIZ_CMS_DATA_DIR=/absolute/private/path php -S 127.0.0.1:8080 -t public public/index.php
+```
+
+官网、发行工具和真实主机兼容测试也在本仓库维护：
+
+```bash
+uv sync --dev
+uv run pytest -q
+uv run python scripts/validate_cms_site.py website
+uv run python scripts/test_php_cms_host_matrix.py --server apache74-no-rewrite
 ```
 
 部署后可以随时运行只读健康检查；它会报告 PHP 能力、数据目录、SQLite 完整性、当前 schema

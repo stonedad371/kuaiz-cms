@@ -1,0 +1,18 @@
+[project]
+name = "kuaiz-cms-tools"
+version = "0.1.0"
+description = "Release, website, and host compatibility tools for Kuaiz CMS"
+requires-python = ">=3.11"
+dependencies = [
+    "cryptography>=44",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+pythonpath = ["."]
