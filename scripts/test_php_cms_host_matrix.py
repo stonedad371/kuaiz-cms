@@ -9,7 +9,6 @@ import os
 import re
 import secrets
 import shutil
-import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -76,6 +75,7 @@ HOSTS = {
         "mount": "/var/www/vhosts/localhost",
         "document_root": "html",
         "server_header": "litespeed",
+        "php_cli": "/usr/local/lsws/lsphp83/bin/php",
     },
 }
 
@@ -163,6 +163,25 @@ def _container_port(name: str) -> int:
         return int(line.rsplit(":", 1)[1])
     except (IndexError, ValueError) as error:
         raise HostMatrixError(f"无法读取测试容器端口：{line}") from error
+
+
+def _container_php(
+    container: str,
+    config: dict,
+    source: str,
+    *arguments: str,
+) -> str:
+    """Read private install state as the container root without weakening it."""
+    result = _run([
+        "docker",
+        "exec",
+        container,
+        config.get("php_cli", "php"),
+        "-r",
+        source,
+        *arguments,
+    ], capture=True)
+    return result.stdout
 
 
 def _assert_site(
@@ -332,8 +351,16 @@ def _assert_site(
         private_location = "protected-document-root"
     if len(private_roots) != 1:
         raise HostMatrixError("私有内核没有安装在预期的安全位置")
-    receipt = json.loads(
-        (private_roots[0] / "install-receipt.json").read_text("utf-8"))
+    private_relative = private_roots[0].relative_to(root).as_posix()
+    private_container = f"{config['mount'].rstrip('/')}/{private_relative}"
+    receipt = json.loads(_container_php(
+        container,
+        config,
+        "$value=file_get_contents($argv[1]);"
+        "if ($value === false) { fwrite(STDERR, 'receipt unreadable'); exit(2); }"
+        "echo $value;",
+        f"{private_container}/install-receipt.json",
+    ))
     if receipt.get("payload_sha256") != build["payload_sha256"]:
         raise HostMatrixError("安装回执与已签名载荷不一致")
     if receipt.get("site_base_url") != f"{scheme}://cms-host-matrix.test":
@@ -360,9 +387,17 @@ def _assert_site(
                 raise HostMatrixError("CMS 私有目录自身的访问保护没有生效")
         finally:
             saved_outer_guard.rename(outer_guard)
-    with sqlite3.connect(private_roots[0] / "var/cms.sqlite") as database:
-        schema = database.execute("PRAGMA user_version").fetchone()[0]
-        users = database.execute("SELECT COUNT(*) FROM cms_users").fetchone()[0]
+    database_state = json.loads(_container_php(
+        container,
+        config,
+        "$database=new PDO('sqlite:'.$argv[1]);"
+        "$schema=(int)$database->query('PRAGMA user_version')->fetchColumn();"
+        "$users=(int)$database->query('SELECT COUNT(*) FROM cms_users')->fetchColumn();"
+        "echo json_encode(array('schema'=>$schema,'users'=>$users));",
+        f"{private_container}/var/cms.sqlite",
+    ))
+    schema = database_state["schema"]
+    users = database_state["users"]
     if schema != 5 or users != 1:
         raise HostMatrixError("真实主机初始化后的数据库状态不正确")
     return {
