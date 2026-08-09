@@ -4,7 +4,12 @@ declare(strict_types=1);
 /** Read-only public routing, media delivery, sitemap and robots policy. */
 final class KuaizCmsPublicApplication
 {
-    public static function handle(PDO $pdo, array $server, string $storageRoot): array
+    public static function handle(
+        PDO $pdo,
+        array $server,
+        string $storageRoot,
+        array $query = []
+    ): array
     {
         $method = strtoupper((string)($server['REQUEST_METHOD'] ?? 'GET'));
         if (!in_array($method, ['GET', 'HEAD'], true)) {
@@ -12,6 +17,9 @@ final class KuaizCmsPublicApplication
         }
         try {
             $path = self::requestPath((string)($server['REQUEST_URI'] ?? '/'));
+            if ($path === '/' && array_key_exists('page', $query)) {
+                $path = self::queryPath($query['page']);
+            }
         } catch (RuntimeException $ignored) {
             return self::plain(400, 'Invalid request path.', true);
         }
@@ -47,7 +55,7 @@ final class KuaizCmsPublicApplication
         $types = KuaizCmsContentRepository::publicContentTypes($pdo);
         $navigation = array_map(static fn(array $type): array => [
             'label' => $type['label'],
-            'url' => '/' . $type['route_slug'],
+            'url' => self::publicUrl('/' . $type['route_slug']),
         ], $types);
         $extensionSlots = KuaizCmsExtensionRegistry::activeThemeSlots($pdo);
 
@@ -206,8 +214,8 @@ final class KuaizCmsPublicApplication
             $base = '/media/' . $media['id'] . '/' . $media['sha256'];
             $extension = KuaizCmsMediaRepository::extensionForMimeType($media['mime_type']);
             $context['media'][$media['id']] = [
-                'url' => $base . '.' . $extension,
-                'thumbnail_url' => $base . '-thumb.' . $extension,
+                'url' => self::publicUrl($base . '.' . $extension),
+                'thumbnail_url' => self::publicUrl($base . '-thumb.' . $extension),
                 'alt_text' => $media['alt_text'],
                 'width' => $media['width'],
                 'height' => $media['height'],
@@ -228,7 +236,7 @@ final class KuaizCmsPublicApplication
     private static function publicEntry(array $entry, string $routeSlug): array
     {
         return $entry['payload'] + [
-            '_url' => '/' . $routeSlug . '/' . $entry['slug'],
+            '_url' => self::publicUrl('/' . $routeSlug . '/' . $entry['slug']),
             'slug' => $entry['slug'],
             'published_at' => $entry['published_at'],
             'updated_at' => $entry['updated_at'],
@@ -275,7 +283,7 @@ final class KuaizCmsPublicApplication
     {
         $body = "User-agent: *\n";
         if ($settings['search_indexing']) {
-            $body .= "Allow: /\nSitemap: " . $settings['base_url'] . "/sitemap.xml\n";
+            $body .= "Allow: /\nSitemap: " . $settings['base_url'] . "/sitemap.xml/\n";
         } else {
             $body .= "Disallow: /\n";
         }
@@ -316,7 +324,8 @@ final class KuaizCmsPublicApplication
         $body = '<?xml version="1.0" encoding="UTF-8"?>'
             . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
         foreach ($urls as $url) {
-            $location = $settings['base_url'] . ($url['path'] === '/' ? '' : $url['path']);
+            $location = $settings['base_url'] . ($url['path'] === '/'
+                ? '' : self::publicUrl($url['path']));
             $body .= '<url><loc>' . self::xml($location) . '</loc><lastmod>'
                 . gmdate('Y-m-d', (int)$url['updated_at']) . '</lastmod></url>';
         }
@@ -374,6 +383,24 @@ final class KuaizCmsPublicApplication
             $path = rtrim($path, '/');
         }
         return $path;
+    }
+
+    private static function queryPath($value): string
+    {
+        if (!is_string($value) || $value === '' || strlen($value) > 1024
+            || str_contains($value, '..')
+            || !preg_match(
+                '#^[a-z0-9][a-z0-9._-]{0,127}(?:/[a-z0-9][a-z0-9._-]{0,127}){0,7}$#D',
+                $value
+            )) {
+            throw new RuntimeException('cms_public_query_path_invalid');
+        }
+        return '/' . $value;
+    }
+
+    private static function publicUrl(string $path): string
+    {
+        return $path === '/' ? '/' : '/?page=' . ltrim($path, '/');
     }
 
     private static function entryTitle(array $content, string $fallback): string

@@ -233,6 +233,13 @@ try {
         $data
     );
     smoke_require($response['status'] === 200, 'smoke_public_status_failed');
+    $queryResponse = KuaizCmsPublicApplication::handle(
+        $pdo,
+        ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/?page=directory/first-listing'],
+        $data,
+        ['page' => 'directory/first-listing']
+    );
+    smoke_require($queryResponse['status'] === 200, 'smoke_public_query_status_failed');
     smoke_require(
         str_contains($response['body'], 'First listing'),
         'smoke_public_content_failed'

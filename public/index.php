@@ -39,7 +39,12 @@ try {
             $dataDirectory
         );
     } else {
-        $response = KuaizCmsPublicApplication::handle($pdo, $_SERVER, $dataDirectory);
+        $response = KuaizCmsPublicApplication::handle(
+            $pdo,
+            $_SERVER,
+            $dataDirectory,
+            $_GET
+        );
     }
 } catch (Throwable $error) {
     error_log('Kuaiz CMS failed to serve the request: ' . $error->getMessage());

@@ -24,7 +24,8 @@ final class KuaizCmsThemeRenderer
         $pageTitle = self::plain($page['title'] ?? $settings['site_name'], 200);
         $description = self::plain($page['description'] ?? $settings['description'], 500);
         $canonicalPath = self::canonicalPath($page['canonical_path'] ?? '/');
-        $canonical = $settings['base_url'] . ($canonicalPath === '/' ? '' : $canonicalPath);
+        $canonicalUrl = self::publicUrl($canonicalPath);
+        $canonical = $settings['base_url'] . ($canonicalUrl === '/' ? '' : $canonicalUrl);
         $title = $template === 'home'
             ? $settings['site_name']
             : $pageTitle . ' · ' . $settings['site_name'];
@@ -340,7 +341,7 @@ final class KuaizCmsThemeRenderer
         }
         $media = $context['media'][$value];
         $url = $thumbnail ? ($media['thumbnail_url'] ?? null) : ($media['url'] ?? null);
-        if (!is_string($url) || !str_starts_with($url, '/media/')) {
+        if (!is_string($url) || !str_starts_with($url, '/?page=media/')) {
             return '';
         }
         return '<img src="' . self::h($url) . '" alt="' . self::h((string)($media['alt_text'] ?? ''))
@@ -490,17 +491,27 @@ final class KuaizCmsThemeRenderer
 
     private static function internalUrl($value): string
     {
-        if (!is_string($value) || !preg_match('#^/[a-z0-9/_-]*$#D', $value)
-            || str_contains($value, '//') || str_contains($value, '..')) {
+        if (!is_string($value) || str_contains($value, '//') || str_contains($value, '..')) {
             return '/';
         }
-        return $value;
+        if (preg_match('#^/[a-z0-9/_-]*$#D', $value)) {
+            return $value;
+        }
+        return preg_match(
+            '#^/\?page=[a-z0-9][a-z0-9._-]{0,127}(?:/[a-z0-9][a-z0-9._-]{0,127}){0,7}$#D',
+            $value
+        ) ? $value : '/';
     }
 
     private static function canonicalPath($value): string
     {
         $path = self::internalUrl($value);
         return $path !== '/' ? rtrim($path, '/') : '/';
+    }
+
+    private static function publicUrl(string $path): string
+    {
+        return $path === '/' ? '/' : '/?page=' . ltrim($path, '/');
     }
 
     private static function h(string $value): string
