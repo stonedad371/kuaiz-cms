@@ -409,6 +409,42 @@ function kuaiz_cms_install_existing_private_root(
     if (is_dir($privateRoot)) {
         return $privateRoot;
     }
+    $publicLauncher = $documentRoot . '/index.php';
+    $launcherBody = is_file($publicLauncher) && !is_link($publicLauncher)
+        && filesize($publicLauncher) <= 4096
+        ? file_get_contents($publicLauncher) : false;
+    if (is_string($launcherBody)) {
+        $bases = [dirname($documentRoot), $documentRoot];
+        $seen = [];
+        $candidateCount = 0;
+        foreach ($bases as $base) {
+            $realBase = realpath($base);
+            if (!is_string($realBase) || isset($seen[$realBase])) {
+                continue;
+            }
+            $seen[$realBase] = true;
+            $candidates = glob(rtrim($realBase, DIRECTORY_SEPARATOR) . '/.kuaiz-cms-*', GLOB_ONLYDIR);
+            if (!is_array($candidates)) {
+                continue;
+            }
+            $candidateCount += count($candidates);
+            if ($candidateCount > 1024) {
+                kuaiz_cms_install_fail(
+                    '发现过多无法确认的旧安装目录，请联系技术人员处理。',
+                    'existing_install_candidates_excessive'
+                );
+            }
+            foreach ($candidates as $candidate) {
+                if (is_link($candidate)
+                    || !preg_match('/^\.kuaiz-cms-(?:[a-f0-9]{16}|[a-f0-9]{64})$/D', basename($candidate))) {
+                    continue;
+                }
+                if (hash_equals($launcherBody, kuaiz_cms_install_public_launcher($candidate))) {
+                    return $candidate;
+                }
+            }
+        }
+    }
     $legacy = kuaiz_cms_install_legacy_private_root($documentRoot);
     return is_dir($legacy) ? $legacy : $privateRoot;
 }
@@ -1065,6 +1101,9 @@ try {
             $documentRoot,
             $privateRoot
         );
+        if (is_dir($existingRoot) && $existingRoot !== $legacyRoot) {
+            $privateRoot = $existingRoot;
+        }
         kuaiz_cms_install_check_public_targets(
             $documentRoot,
             $privateRoot,
@@ -1118,6 +1157,9 @@ try {
         $documentRoot,
         $privateRoot
     );
+    if (is_dir($existingRoot) && $existingRoot !== $legacyRoot) {
+        $privateRoot = $existingRoot;
+    }
     $targets = kuaiz_cms_install_check_public_targets(
         $documentRoot,
         $privateRoot,
