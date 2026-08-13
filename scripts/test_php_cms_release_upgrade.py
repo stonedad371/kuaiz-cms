@@ -277,8 +277,16 @@ def run_case(previous_installer: Path, current_installer: Path, *, rollback: boo
         private_container = f"{MOUNT}/{private.relative_to(host_root).as_posix()}"
         slug = "rollback-sentinel" if rollback else "upgrade-sentinel"
         seed_content(container, private_container, slug)
-        old_receipt = json.loads((private / "install-receipt.json").read_text("utf-8"))
-        old_database_sha256 = hashlib.sha256((private / "var/cms.sqlite").read_bytes()).hexdigest()
+        old_receipt = json.loads(container_php(
+            container,
+            "echo file_get_contents($argv[1].'/install-receipt.json');",
+            private_container,
+        ))
+        old_database_sha256 = container_php(
+            container,
+            "echo hash_file('sha256',$argv[1].'/var/cms.sqlite');",
+            private_container,
+        ).strip()
 
         conflict = document_root / "directory" / slug / "index.php"
         if rollback:
@@ -298,14 +306,23 @@ def run_case(previous_installer: Path, current_installer: Path, *, rollback: boo
             {"form_token": form_token},
             cookie,
         )
-        receipt = json.loads((private / "install-receipt.json").read_text("utf-8"))
+        receipt = json.loads(container_php(
+            container,
+            "echo file_get_contents($argv[1].'/install-receipt.json');",
+            private_container,
+        ))
         public_status, _, public_body = request_http(port, f"/?page=directory/{slug}")
         if rollback:
             if status != 400 or "为避免覆盖现有网站" not in result:
                 raise UpgradeTestError("人为制造的升级故障没有被安全拒绝")
             if receipt != old_receipt:
                 raise UpgradeTestError("升级失败后安装回执没有恢复")
-            if hashlib.sha256((private / "var/cms.sqlite").read_bytes()).hexdigest() != old_database_sha256:
+            current_database_sha256 = container_php(
+                container,
+                "echo hash_file('sha256',$argv[1].'/var/cms.sqlite');",
+                private_container,
+            ).strip()
+            if current_database_sha256 != old_database_sha256:
                 raise UpgradeTestError("升级失败后数据库没有恢复")
             if conflict.read_text("utf-8") != "<?php echo 'user-owned';\n":
                 raise UpgradeTestError("升级失败覆盖了用户文件")
