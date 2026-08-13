@@ -21,7 +21,7 @@ def test_community_distribution_is_an_independent_project():
     assert manifest == {
         "schema": "kuaiz-cms-distribution/v1",
         "name": "Kuaiz CMS Community",
-        "version": "0.1.9-dev",
+        "version": "0.1.10-dev",
         "runtime_profile": "community-php-sqlite-v1",
         "database": "sqlite",
         "database_schema_version": 5,

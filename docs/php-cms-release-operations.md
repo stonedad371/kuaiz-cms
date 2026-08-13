@@ -141,6 +141,19 @@ CMS_RELEASE_DIR=artifacts/cms-public-0.1.0-dev \
 6. Playwright 桌面、手机、长数据、复杂状态、空数据和 RTL 基准通过；
 7. 下载发布后，从公网重新下载并做一次独立验签和黑盒安装。
 
+本地可重复执行的浏览器与跨版本黑盒命令：
+
+```bash
+npm ci
+npx playwright install chromium
+npm run test:browser
+uv run python scripts/test_php_cms_release_upgrade.py
+```
+
+稳定支持版还必须满足 [稳定支持版范围与门禁](stable-release-scope.md) 中的真实主机观察、
+恢复演练、分支保护、支持承诺和离线生产信任根要求。自动测试全绿是候选版的必要条件，
+不是单独提升为 Supported 的充分条件。
+
 ## 客户站运行闭环
 
 安装完成后，日常人工编辑和公开访问不依赖快智总台。主机维护至少保留下面的固定顺序：

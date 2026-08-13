@@ -160,12 +160,14 @@ final class KuaizCmsMediaRepository
         PDO $pdo,
         string $status = 'active',
         int $limit = 100,
-        int $offset = 0
+        int $offset = 0,
+        ?string $search = null
     ): array {
         self::status($status);
         if ($limit < 1 || $limit > 200 || $offset < 0 || $offset > 1000000) {
             throw new RuntimeException('cms_media_pagination_invalid');
         }
+        $search = self::search($search);
         $statement = $pdo->prepare(<<<'SQL'
 SELECT m.*,
        COUNT(DISTINCT CASE
@@ -177,15 +179,40 @@ LEFT JOIN cms_revision_media rm ON rm.media_id=m.id
 LEFT JOIN cms_entry_revisions r ON r.id=rm.revision_id
 LEFT JOIN cms_entries e ON e.id=r.entry_id
 WHERE m.status=:status
+  AND (:search_empty=1 OR m.original_name LIKE :search ESCAPE '\'
+       OR m.alt_text LIKE :search ESCAPE '\' OR m.caption LIKE :search ESCAPE '\')
 GROUP BY m.id
 ORDER BY m.created_at DESC,m.id DESC
 LIMIT :limit OFFSET :offset
 SQL);
         $statement->bindValue(':status', $status, PDO::PARAM_STR);
+        $statement->bindValue(':search_empty', $search === null ? 1 : 0, PDO::PARAM_INT);
+        $statement->bindValue(':search', $search === null ? '' : '%' . self::like($search) . '%', PDO::PARAM_STR);
         $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
         $statement->bindValue(':offset', $offset, PDO::PARAM_INT);
         $statement->execute();
         return array_map([self::class, 'publicRecord'], $statement->fetchAll());
+    }
+
+    public static function count(
+        PDO $pdo,
+        string $status = 'active',
+        ?string $search = null
+    ): int {
+        self::status($status);
+        $search = self::search($search);
+        $statement = $pdo->prepare(<<<'SQL'
+SELECT COUNT(*) FROM cms_media
+WHERE status=:status
+  AND (:search_empty=1 OR original_name LIKE :search ESCAPE '\'
+       OR alt_text LIKE :search ESCAPE '\' OR caption LIKE :search ESCAPE '\')
+SQL);
+        $statement->execute([
+            ':status' => $status,
+            ':search_empty' => $search === null ? 1 : 0,
+            ':search' => $search === null ? '' : '%' . self::like($search) . '%',
+        ]);
+        return (int)$statement->fetchColumn();
     }
 
     public static function item(PDO $pdo, int $mediaId): array
@@ -633,6 +660,24 @@ SQL)->execute([
         if (!in_array($status, ['active', 'archived'], true)) {
             throw new RuntimeException('cms_media_status_invalid');
         }
+    }
+
+    private static function search(?string $search): ?string
+    {
+        if ($search === null || trim($search) === '') {
+            return null;
+        }
+        $search = trim($search);
+        if (strlen($search) > 200 || !preg_match('//u', $search)
+            || preg_match('/[\x00-\x1f\x7f]/', $search)) {
+            throw new RuntimeException('cms_media_search_invalid');
+        }
+        return $search;
+    }
+
+    private static function like(string $value): string
+    {
+        return strtr($value, ['\\' => '\\\\', '%' => '\\%', '_' => '\\_']);
     }
 
     private static function transactionAvailable(PDO $pdo): void

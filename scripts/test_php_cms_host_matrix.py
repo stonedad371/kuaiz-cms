@@ -302,6 +302,14 @@ def _assert_site(
     status, _, dashboard = request("/admin/", cookie="; ".join(active_cookies))
     if status != 200 or "管理网站内容" not in dashboard:
         raise HostMatrixError("登录后无法打开网站后台")
+    for path, marker in (
+        ("/admin/account/", "修改登录密码"),
+        ("/admin/users/", "管理后台成员"),
+        ("/admin/backups/", "网站备份"),
+    ):
+        status, _, page = request(path, cookie="; ".join(active_cookies))
+        if status != 200 or marker not in page:
+            raise HostMatrixError(f"新增后台物理路由不可用：{path}（HTTP {status}）")
 
     status, _, public_list = request("/directory/")
     if status != 200 or "目录条目" not in public_list:

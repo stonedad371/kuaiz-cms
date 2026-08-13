@@ -22,7 +22,10 @@ def _builder_module():
 
 
 def test_source_inventory_is_explicit_and_complete():
-    ignored_roots = {".git", ".venv", ".pytest_cache", "artifacts", "__pycache__"}
+    ignored_roots = {
+        ".git", ".venv", ".pytest_cache", "artifacts", "__pycache__",
+        "node_modules", "playwright-report", "test-results",
+    }
     actual = {
         path.relative_to(CMS).as_posix()
         for path in CMS.rglob("*")

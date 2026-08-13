@@ -9,6 +9,49 @@ final class KuaizCmsBackup
     private const MAX_FILES = 50000;
     private const MAX_TOTAL_BYTES = 4294967296;
 
+    public static function backups(string $dataDirectory): array
+    {
+        $dataRoot = self::dataRoot($dataDirectory);
+        $backupRoot = $dataRoot . '/backups';
+        if (!file_exists($backupRoot)) {
+            return [];
+        }
+        if (is_link($backupRoot) || !is_dir($backupRoot)) {
+            throw new RuntimeException('cms_backup_directory_unsafe');
+        }
+        $items = scandir($backupRoot);
+        if (!is_array($items)) {
+            throw new RuntimeException('cms_backup_directory_unsafe');
+        }
+        $backups = [];
+        foreach ($items as $name) {
+            if (!preg_match(
+                '/^(?:backup|pre-restore)-[0-9]{8}-[0-9]{6}-[a-f0-9]{12}$/D',
+                $name
+            )) {
+                continue;
+            }
+            try {
+                $verified = self::verifiedBackup($backupRoot . '/' . $name, false);
+            } catch (RuntimeException $ignored) {
+                continue;
+            }
+            $manifest = $verified['manifest'];
+            $backups[] = [
+                'backup_id' => $manifest['backup_id'],
+                'created_at' => $manifest['created_at'],
+                'created_by' => $manifest['created_by'],
+                'database_schema_version' => $manifest['database_schema_version'],
+                'file_count' => $manifest['totals']['file_count'],
+                'byte_size' => $manifest['totals']['byte_size'],
+            ];
+        }
+        usort($backups, static fn(array $left, array $right): int =>
+            $right['created_at'] <=> $left['created_at']
+        );
+        return $backups;
+    }
+
     public static function create(
         string $dataDirectory,
         ?string $backupDirectory,
@@ -251,7 +294,7 @@ final class KuaizCmsBackup
         ];
     }
 
-    private static function verifiedBackup(string $backupPath): array
+    private static function verifiedBackup(string $backupPath, bool $verifyFiles = true): array
     {
         if ($backupPath === '' || str_contains($backupPath, "\0")
             || is_link($backupPath) || !is_dir($backupPath)) {
@@ -322,7 +365,9 @@ final class KuaizCmsBackup
             if ($totalBytes > self::MAX_TOTAL_BYTES) {
                 throw new RuntimeException('cms_backup_too_large');
             }
-            self::verifySourceFile($root, $path, $file);
+            if ($verifyFiles) {
+                self::verifySourceFile($root, $path, $file);
+            }
         }
         if (!isset($seen['cms.sqlite'])
             || ($manifest['totals']['file_count'] ?? null) !== count($manifest['files'])

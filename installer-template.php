@@ -19,6 +19,7 @@ const KUAIZ_CMS_UPGRADE_PAYLOADS = [
     '0.1.6-dev' => '525cf2b2ce770d42ba4c0646bfd8d06a3067edd2b001a9cd4b227b8fb37e4a24',
     '0.1.7-dev' => '2ed1b2a5293ddeb6a13d147010b1759b0ce5c6bae6c15703dda861737a277f1c',
     '0.1.8-dev' => '6a9bfd390bd398d30c3d188db8964edf16d87bfdeefd9949699025ca1b61ad08',
+    '0.1.9-dev' => 'f7498433190f62e0d31bc4652b867c24e3247c0da773dee5de5f7b7a1e31c36f',
 ];
 const KUAIZ_CMS_MAX_UPGRADE_FILES = 50000;
 const KUAIZ_CMS_MAX_UPGRADE_BYTES = 4294967296;
@@ -586,6 +587,7 @@ function kuaiz_cms_install_check_public_targets(
         '/admin/content/new',
         '/admin/content/edit',
         '/admin/content/history',
+        '/admin/content/restore-revision',
         '/admin/content/save',
         '/admin/content/state',
         '/admin/media',
@@ -596,6 +598,13 @@ function kuaiz_cms_install_check_public_targets(
         '/admin/settings',
         '/admin/themes',
         '/admin/themes/activate',
+        '/admin/account',
+        '/admin/account/password',
+        '/admin/users',
+        '/admin/users/create',
+        '/admin/users/access',
+        '/admin/backups',
+        '/admin/backups/create',
     ] as $route) {
         $targets[ltrim($route, '/') . '/index.php'] = $launcher;
     }
@@ -881,6 +890,7 @@ function kuaiz_cms_install_public_files(
 ): void
 {
     $temporaries = [];
+    $backups = [];
     try {
         foreach ($targets as $name => $body) {
             $target = $documentRoot . '/' . $name;
@@ -903,15 +913,66 @@ function kuaiz_cms_install_public_files(
                 && !is_link($target)
                 && file_get_contents($target)
                     === kuaiz_cms_install_public_launcher($replaceablePrivateRoot);
-            if ((file_exists($target) && !$replaceableLauncher)
-                || !rename($temporary, $target)) {
+            if (file_exists($target) && !$replaceableLauncher) {
+                kuaiz_cms_install_fail('无法提交网站入口文件。', 'public_commit_failed');
+            }
+            $backup = null;
+            if (is_file($target)) {
+                $backup = $documentRoot . '/.kuaiz-public-backup-' . bin2hex(random_bytes(8));
+                if (file_exists($backup) || !rename($target, $backup)) {
+                    kuaiz_cms_install_fail('无法安全备份网站入口文件。', 'public_backup_failed');
+                }
+            }
+            $backups[$name] = $backup;
+            if (!rename($temporary, $target)) {
+                if (is_string($backup)) {
+                    if (!@rename($backup, $target)) {
+                        kuaiz_cms_install_fail(
+                            '网站入口回滚没有完整完成，请联系技术人员处理。',
+                            'public_rollback_failed'
+                        );
+                    }
+                }
+                unset($backups[$name]);
                 kuaiz_cms_install_fail('无法提交网站入口文件。', 'public_commit_failed');
             }
             unset($temporaries[$name]);
         }
+        foreach ($backups as $backup) {
+            if (is_string($backup)) {
+                @unlink($backup);
+            }
+        }
+        $backups = [];
+    } catch (Throwable $error) {
+        $rollbackFailed = false;
+        foreach (array_reverse(array_keys($backups)) as $name) {
+            $target = $documentRoot . '/' . $name;
+            $backup = $backups[$name];
+            if (is_file($target) && !is_link($target) && !@unlink($target)) {
+                $rollbackFailed = true;
+                continue;
+            }
+            if (is_string($backup) && !@rename($backup, $target)) {
+                $rollbackFailed = true;
+            }
+        }
+        $backups = [];
+        if ($rollbackFailed) {
+            kuaiz_cms_install_fail(
+                '网站入口回滚没有完整完成，请联系技术人员处理。',
+                'public_rollback_failed'
+            );
+        }
+        throw $error;
     } finally {
         foreach ($temporaries as $temporary) {
             @unlink($temporary);
+        }
+        foreach ($backups as $backup) {
+            if (is_string($backup)) {
+                @unlink($backup);
+            }
         }
     }
 }
@@ -963,6 +1024,33 @@ function kuaiz_cms_install_remove_upgrade_backup(string $path): void
             ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
     }
     @rmdir($path);
+}
+
+function kuaiz_cms_install_rollback_upgrade(?array &$rollback): bool
+{
+    if (!is_array($rollback)) {
+        return true;
+    }
+    $privateRoot = (string)($rollback['private_root'] ?? '');
+    $backup = $rollback['backup'] ?? null;
+    if ($privateRoot === '' || is_link($privateRoot) || !is_dir($privateRoot)
+        || ($backup !== null && (!is_string($backup) || is_link($backup) || !is_dir($backup)))) {
+        return false;
+    }
+    $failed = dirname($privateRoot) . '/.kuaiz-cms-stage-' . bin2hex(random_bytes(8));
+    if (file_exists($failed) || !rename($privateRoot, $failed)) {
+        return false;
+    }
+    if (is_string($backup) && !rename($backup, $privateRoot)) {
+        @rename($failed, $privateRoot);
+        return false;
+    }
+    kuaiz_cms_install_remove_stage($failed);
+    if (file_exists($failed)) {
+        return false;
+    }
+    $rollback = null;
+    return true;
 }
 
 function kuaiz_cms_install_remove_stage(string $stage): void
@@ -1105,6 +1193,7 @@ function kuaiz_cms_install_render(
 
 $stage = null;
 $upgradeBackup = null;
+$upgradeRollback = null;
 $legacyRootToRemove = null;
 try {
     $release = kuaiz_cms_install_verify_release();
@@ -1255,6 +1344,10 @@ try {
                         'upgrade_commit_failed'
                     );
                 }
+                $upgradeRollback = [
+                    'private_root' => $privateRoot,
+                    'backup' => null,
+                ];
             } else {
                 $upgradeBackup = dirname($privateRoot) . '/.kuaiz-cms-upgrade-backup-'
                     . bin2hex(random_bytes(8));
@@ -1272,6 +1365,10 @@ try {
                         'upgrade_commit_failed'
                     );
                 }
+                $upgradeRollback = [
+                    'private_root' => $privateRoot,
+                    'backup' => $upgradeBackup,
+                ];
             }
         } elseif (file_exists($privateRoot) || !rename($stage, $privateRoot)) {
             kuaiz_cms_install_fail('无法提交 CMS 私有内核。', 'private_commit_failed');
@@ -1290,8 +1387,12 @@ try {
     if (is_string($upgradeBackup)) {
         kuaiz_cms_install_remove_upgrade_backup($upgradeBackup);
         $upgradeBackup = null;
+        $upgradeRollback = null;
     }
     if (is_string($legacyRootToRemove) && is_dir($legacyRootToRemove)) {
+        // Public launchers already point at the verified new root. From this point,
+        // failure to remove the legacy copy must not roll the working site back.
+        $upgradeRollback = null;
         $legacyBackup = dirname($legacyRootToRemove) . '/.kuaiz-cms-upgrade-backup-'
             . bin2hex(random_bytes(8));
         if (file_exists($legacyBackup) || !rename($legacyRootToRemove, $legacyBackup)) {
@@ -1320,6 +1421,14 @@ try {
         kuaiz_cms_install_remove_stage($stage);
         $stage = null;
     }
+    if (!kuaiz_cms_install_rollback_upgrade($upgradeRollback)) {
+        kuaiz_cms_install_render(
+            '需要人工处理',
+            '程序自动回滚没有完整完成，请联系技术人员处理。',
+            false,
+            500
+        );
+    }
     kuaiz_cms_install_render('这次没有安装', $error->getMessage(), false, 400);
 } catch (Throwable $error) {
     $errorReference = strtoupper(substr(hash(
@@ -1330,6 +1439,9 @@ try {
     if (is_string($stage) && file_exists($stage)) {
         kuaiz_cms_install_remove_stage($stage);
         $stage = null;
+    }
+    if (!kuaiz_cms_install_rollback_upgrade($upgradeRollback)) {
+        $errorReference .= '-ROLLBACK';
     }
     kuaiz_cms_install_render(
         '这次没有安装',

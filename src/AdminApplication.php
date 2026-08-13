@@ -9,6 +9,7 @@ final class KuaizCmsAdminApplication
     private const LOGIN_CSRF_COOKIE = '__Host-kuaiz_cms_login_csrf';
     private const MAX_FORM_BYTES = 262144;
     private const MAX_UPLOAD_REQUEST_BYTES = 13631488;
+    private const PAGE_SIZE = 30;
     private static bool $secureCookies = true;
     private static string $sessionCookie = self::SESSION_COOKIE;
     private static string $csrfCookie = self::CSRF_COOKIE;
@@ -92,6 +93,9 @@ final class KuaizCmsAdminApplication
             if ($method === 'POST' && $path === '/admin/content/state') {
                 return self::changeContentState($pdo, $post, $session);
             }
+            if ($method === 'POST' && $path === '/admin/content/restore-revision') {
+                return self::restoreRevision($pdo, $post, $session);
+            }
             if ($method === 'POST' && $path === '/admin/media/upload') {
                 return self::uploadMedia(
                     $pdo,
@@ -112,6 +116,21 @@ final class KuaizCmsAdminApplication
             }
             if ($method === 'POST' && $path === '/admin/themes/activate') {
                 return self::activateTheme($pdo, $post, $session);
+            }
+            if ($method === 'POST' && $path === '/admin/account/password') {
+                return self::changePassword($pdo, $post, $session);
+            }
+            if ($method === 'POST' && $path === '/admin/users/create') {
+                return self::createUser($pdo, $post, $session);
+            }
+            if ($method === 'POST' && $path === '/admin/users/access') {
+                return self::updateUserAccess($pdo, $post, $session);
+            }
+            if ($method === 'POST' && $path === '/admin/backups/create') {
+                return self::createBackup(
+                    $session,
+                    self::requiredStorageRoot($storageRoot)
+                );
             }
             if ($method === 'GET' && $path === '/admin/content/new') {
                 KuaizCmsAuth::authorize($pdo, $token, ['admin', 'editor']);
@@ -153,6 +172,23 @@ final class KuaizCmsAdminApplication
                     $session,
                     $csrfToken,
                     self::queryText($query, 'welcome', 1, true) === '1'
+                );
+            }
+            if ($method === 'GET' && $path === '/admin/account') {
+                KuaizCmsAuth::authorize($pdo, $token, ['admin', 'editor', 'viewer']);
+                return self::accountPage($session, $csrfToken);
+            }
+            if ($method === 'GET' && $path === '/admin/users') {
+                KuaizCmsAuth::authorize($pdo, $token, ['admin']);
+                return self::usersPage($pdo, $session, $csrfToken);
+            }
+            if ($method === 'GET' && $path === '/admin/backups') {
+                KuaizCmsAuth::authorize($pdo, $token, ['admin']);
+                return self::backupsPage(
+                    self::requiredStorageRoot($storageRoot),
+                    $session,
+                    $csrfToken,
+                    self::queryText($query, 'created', 1, true) === '1'
                 );
             }
             if ($method === 'GET' && $path === '/admin') {
@@ -235,9 +271,21 @@ final class KuaizCmsAdminApplication
         if ($status === '') {
             $status = null;
         }
+        $search = trim(self::queryText($query, 'q', 200, true));
+        $search = $search === '' ? null : $search;
+        $page = self::queryPage($query);
+        $total = KuaizCmsContentRepository::adminEntryCount($pdo, $status, $search);
         $onboardingReady = self::queryText($query, 'onboarding', 8, true) === 'ready';
         $types = KuaizCmsContentRepository::contentTypes($pdo);
-        $entries = KuaizCmsContentRepository::adminEntries($pdo, null, null, $status, 100, 0);
+        $entries = KuaizCmsContentRepository::adminEntries(
+            $pdo,
+            null,
+            null,
+            $status,
+            self::PAGE_SIZE,
+            ($page - 1) * self::PAGE_SIZE,
+            $search
+        );
         $canEdit = in_array($session['user']['role'], ['admin', 'editor'], true);
         $typeLinks = '';
         foreach ($types as $type) {
@@ -270,10 +318,21 @@ final class KuaizCmsAdminApplication
         if ($rows === '') {
             $rows = '<tr><td colspan="5" class="empty">当前筛选下还没有内容。</td></tr>';
         }
-        $filter = '<nav class="filters"><a href="/admin">全部</a>'
-            . '<a href="/admin?status=draft">草稿</a>'
-            . '<a href="/admin?status=published">已发布</a>'
-            . '<a href="/admin?status=archived">已归档</a></nav>';
+        $searchQuery = $search === null ? '' : '&amp;q=' . rawurlencode($search);
+        $filter = '<nav class="filters"><a href="/admin?q=' . rawurlencode($search ?? '') . '">全部</a>'
+            . '<a href="/admin?status=draft' . $searchQuery . '">草稿</a>'
+            . '<a href="/admin?status=published' . $searchQuery . '">已发布</a>'
+            . '<a href="/admin?status=archived' . $searchQuery . '">已归档</a></nav>';
+        $searchForm = '<form class="search-form" method="get" action="/admin">'
+            . ($status === null ? '' : self::hidden('status', $status))
+            . '<input type="search" name="q" maxlength="200" placeholder="搜索标题、内容或网址路径" value="'
+            . self::h($search ?? '') . '"><button class="button secondary" type="submit">搜索</button></form>';
+        $pagination = self::pagination(
+            '/admin',
+            $page,
+            $total,
+            ['status' => $status, 'q' => $search]
+        );
         $onboardingNotice = $onboardingReady
             ? '<div class="notice"><b>网站基础设置已保存。</b> 现在可以创建第一条内容；'
                 . '确认页面、文字和图片全部准备好以后，再到网站设置中开启搜索引擎收录。</div>'
@@ -283,14 +342,19 @@ final class KuaizCmsAdminApplication
             . '<p class="hero-action"><a class="button secondary" href="/admin/media">打开素材库</a> '
             . ($session['user']['role'] === 'admin'
                 ? '<a class="button secondary" href="/admin/themes">网站风格</a> '
-                    . '<a class="button secondary" href="/admin/settings">网站设置</a>' : '')
+                    . '<a class="button secondary" href="/admin/settings">网站设置</a> '
+                    . '<a class="button secondary" href="/admin/users">成员</a> '
+                    . '<a class="button secondary" href="/admin/backups">备份</a> ' : '')
+            . '<a class="button secondary" href="/admin/account">账户安全</a>'
             . '</p></div>'
             . self::userCard($session, $csrfToken) . '</section>' . $onboardingNotice
             . '<section class="panel"><div class="panel-head"><h2>可用内容类型</h2></div><ul class="types">'
             . $typeLinks . '</ul></section>'
-            . '<section class="panel"><div class="panel-head"><h2>内容</h2>' . $filter . '</div>'
+            . '<section class="panel"><div class="panel-head"><h2>内容（' . $total . '）</h2>' . $filter . '</div>'
+            . $searchForm
             . '<div class="table-wrap"><table><thead><tr><th>内容</th><th>类型</th><th>状态</th>'
-            . '<th>版本</th><th>操作</th></tr></thead><tbody>' . $rows . '</tbody></table></div></section>';
+            . '<th>版本</th><th>操作</th></tr></thead><tbody>' . $rows
+            . '</tbody></table></div>' . $pagination . '</section>';
         return self::page('内容管理', $body);
     }
 
@@ -463,6 +527,19 @@ final class KuaizCmsAdminApplication
         return self::redirect('/admin/content/edit?id=' . $entryId);
     }
 
+    private static function restoreRevision(PDO $pdo, array $post, array $session): array
+    {
+        $entryId = self::postId($post, 'entry_id');
+        KuaizCmsContentRepository::restore(
+            $pdo,
+            $entryId,
+            self::postId($post, 'revision_id'),
+            'user:' . $session['user']['id'],
+            false
+        );
+        return self::redirect('/admin/content/edit?id=' . $entryId);
+    }
+
     private static function historyPage(
         PDO $pdo,
         array $query,
@@ -480,10 +557,20 @@ final class KuaizCmsAdminApplication
                 $revision['payload'],
                 JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
             );
+            $restore = '';
+            if (in_array($session['user']['role'], ['admin', 'editor'], true)
+                && !$revision['is_current']) {
+                $restore = '<form method="post" action="/admin/content/restore-revision">'
+                    . self::hidden('_csrf', $csrfToken)
+                    . self::hidden('entry_id', (string)$entry['id'])
+                    . self::hidden('revision_id', (string)$revision['id'])
+                    . '<button class="button secondary" type="submit">恢复为新草稿</button></form>';
+            }
             $items .= '<article class="revision"><header><strong>版本 ' . $revision['version']
                 . '</strong><span>' . self::h(implode(' · ', $marks)) . '</span></header><small>'
                 . self::h(date('Y-m-d H:i:s', $revision['created_at'])) . ' · '
-                . self::h($revision['actor']) . '</small><pre>' . self::h((string)$pretty) . '</pre></article>';
+                . self::h($revision['actor']) . '</small><pre>' . self::h((string)$pretty)
+                . '</pre>' . $restore . '</article>';
         }
         $backLink = in_array($session['user']['role'], ['admin', 'editor'], true)
             ? '/admin/content/edit?id=' . $entry['id'] : '/admin';
@@ -504,7 +591,17 @@ final class KuaizCmsAdminApplication
         if ($status === '') {
             $status = 'active';
         }
-        $items = KuaizCmsMediaRepository::items($pdo, $status, 100, 0);
+        $search = trim(self::queryText($query, 'q', 200, true));
+        $search = $search === '' ? null : $search;
+        $page = self::queryPage($query);
+        $total = KuaizCmsMediaRepository::count($pdo, $status, $search);
+        $items = KuaizCmsMediaRepository::items(
+            $pdo,
+            $status,
+            self::PAGE_SIZE,
+            ($page - 1) * self::PAGE_SIZE,
+            $search
+        );
         $canEdit = in_array($session['user']['role'], ['admin', 'editor'], true);
         $cards = '';
         foreach ($items as $media) {
@@ -567,12 +664,23 @@ final class KuaizCmsAdminApplication
         }
         $filters = '<nav class="filters"><a href="/admin/media">可用素材</a>'
             . '<a href="/admin/media?status=archived">已归档</a></nav>';
+        $searchForm = '<form class="search-form" method="get" action="/admin/media">'
+            . self::hidden('status', $status)
+            . '<input type="search" name="q" maxlength="200" placeholder="搜索文件名或图片说明" value="'
+            . self::h($search ?? '') . '"><button class="button secondary" type="submit">搜索</button></form>';
+        $pagination = self::pagination(
+            '/admin/media',
+            $page,
+            $total,
+            ['status' => $status, 'q' => $search]
+        );
         $body = '<section class="hero compact"><div><p class="eyebrow">网站资产</p><h1>素材库</h1>'
             . '<p><a href="/admin">← 返回内容列表</a></p></div>'
             . self::userCard($session, $csrfToken) . '</section>' . $upload
             . '<section class="panel"><div class="panel-head"><h2>'
-            . self::h($status === 'active' ? '可用图片' : '已归档图片') . '</h2>' . $filters
-            . '</div><div class="media-grid">' . $cards . '</div></section>';
+            . self::h($status === 'active' ? '可用图片' : '已归档图片') . '（' . $total . '）</h2>' . $filters
+            . '</div>' . $searchForm . '<div class="media-grid">' . $cards . '</div>'
+            . $pagination . '</section>';
         return self::page('素材库', $body);
     }
 
@@ -814,6 +922,140 @@ final class KuaizCmsAdminApplication
         return self::redirect('/admin?onboarding=ready');
     }
 
+    private static function accountPage(array $session, string $csrfToken): array
+    {
+        $body = '<section class="hero compact"><div><p class="eyebrow">账户安全</p>'
+            . '<h1>修改登录密码</h1><p><a href="/admin">← 返回内容列表</a></p></div>'
+            . self::userCard($session, $csrfToken) . '</section>'
+            . '<section class="panel editor"><form method="post" action="/admin/account/password">'
+            . self::hidden('_csrf', $csrfToken)
+            . '<label>当前密码<input type="password" name="current_password" maxlength="1024" autocomplete="current-password" required></label>'
+            . '<label>新密码<input type="password" name="new_password" minlength="12" maxlength="1024" autocomplete="new-password" required><small>至少 12 位，不能与当前密码相同。</small></label>'
+            . '<label>再次输入新密码<input type="password" name="password_confirmation" minlength="12" maxlength="1024" autocomplete="new-password" required></label>'
+            . '<button class="button" type="submit">修改密码并退出其他登录</button></form></section>';
+        return self::page('账户安全', $body);
+    }
+
+    private static function changePassword(PDO $pdo, array $post, array $session): array
+    {
+        $newPassword = self::postText($post, 'new_password', 1024);
+        $confirmation = self::postText($post, 'password_confirmation', 1024);
+        if (!hash_equals($newPassword, $confirmation)) {
+            throw new RuntimeException('cms_admin_password_confirmation_mismatch');
+        }
+        KuaizCmsAuth::changePassword(
+            $pdo,
+            $session,
+            self::postText($post, 'current_password', 1024),
+            $newPassword
+        );
+        return self::loginPage(
+            '密码已经修改，请使用新密码重新登录。',
+            200,
+            self::expiredCookies()
+        );
+    }
+
+    private static function usersPage(PDO $pdo, array $session, string $csrfToken): array
+    {
+        $rows = '';
+        foreach (KuaizCmsAuth::users($pdo, $session) as $user) {
+            $roles = '';
+            foreach (['admin', 'editor', 'viewer'] as $role) {
+                $roles .= '<option value="' . $role . '"'
+                    . ($user['role'] === $role ? ' selected' : '') . '>'
+                    . self::h(self::roleLabel($role)) . '</option>';
+            }
+            $statuses = '<option value="active"'
+                . ($user['status'] === 'active' ? ' selected' : '') . '>启用</option>'
+                . '<option value="disabled"'
+                . ($user['status'] === 'disabled' ? ' selected' : '') . '>停用</option>';
+            $lastLogin = $user['last_login_at'] === null
+                ? '从未登录' : date('Y-m-d H:i', $user['last_login_at']);
+            $rows .= '<tr><td><strong>' . self::h($user['display_name']) . '</strong><small>'
+                . self::h($user['username']) . '</small></td><td>' . self::h($lastLogin)
+                . '</td><td><form class="inline-form" method="post" action="/admin/users/access">'
+                . self::hidden('_csrf', $csrfToken) . self::hidden('user_id', (string)$user['id'])
+                . '<select name="role">' . $roles . '</select><select name="status">' . $statuses
+                . '</select><button class="button secondary" type="submit">保存</button></form></td></tr>';
+        }
+        $body = '<section class="hero compact"><div><p class="eyebrow">成员与权限</p><h1>管理后台成员</h1>'
+            . '<p><a href="/admin">← 返回内容列表</a></p></div>' . self::userCard($session, $csrfToken)
+            . '</section><section class="panel editor"><h2>添加成员</h2>'
+            . '<form method="post" action="/admin/users/create">' . self::hidden('_csrf', $csrfToken)
+            . '<label>登录名或邮箱<input name="username" maxlength="128" required></label>'
+            . '<label>显示名称<input name="display_name" maxlength="80" required></label>'
+            . '<label>初始密码<input type="password" name="password" minlength="12" maxlength="1024" autocomplete="new-password" required></label>'
+            . '<label>角色<select name="role"><option value="editor">编辑</option><option value="viewer">只读成员</option><option value="admin">管理员</option></select></label>'
+            . '<button class="button" type="submit">添加成员</button></form></section>'
+            . '<section class="panel"><h2>现有成员</h2><div class="table-wrap"><table><thead><tr><th>成员</th><th>最近登录</th><th>权限</th></tr></thead><tbody>'
+            . $rows . '</tbody></table></div></section>';
+        return self::page('成员管理', $body);
+    }
+
+    private static function createUser(PDO $pdo, array $post, array $session): array
+    {
+        KuaizCmsAuth::createUser(
+            $pdo,
+            $session,
+            self::postText($post, 'username', 128),
+            self::postText($post, 'display_name', 320),
+            self::postText($post, 'password', 1024),
+            self::postText($post, 'role', 16)
+        );
+        return self::redirect('/admin/users');
+    }
+
+    private static function updateUserAccess(PDO $pdo, array $post, array $session): array
+    {
+        KuaizCmsAuth::updateUserAccess(
+            $pdo,
+            $session,
+            self::postId($post, 'user_id'),
+            self::postText($post, 'role', 16),
+            self::postText($post, 'status', 16)
+        );
+        return self::redirect('/admin/users');
+    }
+
+    private static function backupsPage(
+        string $storageRoot,
+        array $session,
+        string $csrfToken,
+        bool $created
+    ): array {
+        $rows = '';
+        foreach (KuaizCmsBackup::backups($storageRoot) as $backup) {
+            $rows .= '<tr><td><strong>' . self::h($backup['backup_id']) . '</strong></td><td>'
+                . self::h(date('Y-m-d H:i:s', $backup['created_at'])) . '</td><td>'
+                . self::h(self::byteSize($backup['byte_size'])) . '</td><td>'
+                . $backup['file_count'] . '</td><td>Schema ' . $backup['database_schema_version']
+                . '</td></tr>';
+        }
+        if ($rows === '') {
+            $rows = '<tr><td colspan="5" class="empty">还没有本地备份。</td></tr>';
+        }
+        $notice = $created
+            ? '<div class="notice"><b>备份已经创建。</b> 请同时把主机备份复制到另一处安全位置。</div>'
+            : '';
+        $body = '<section class="hero compact"><div><p class="eyebrow">数据安全</p><h1>网站备份</h1>'
+            . '<p><a href="/admin">← 返回内容列表</a></p></div>' . self::userCard($session, $csrfToken)
+            . '</section>' . $notice . '<section class="panel"><div class="panel-head"><div><h2>本地备份</h2>'
+            . '<small>包含数据库、已登记图片和主题资源，不包含密码明文。</small></div>'
+            . '<form method="post" action="/admin/backups/create">' . self::hidden('_csrf', $csrfToken)
+            . '<button class="button" type="submit">立即创建备份</button></form></div>'
+            . '<div class="table-wrap"><table><thead><tr><th>备份</th><th>时间</th><th>大小</th><th>文件</th><th>数据库</th></tr></thead><tbody>'
+            . $rows . '</tbody></table></div></section>'
+            . '<div class="notice">恢复备份会替换当前数据，当前版本仍要求由主机管理员使用受保护的命令行完成，并会先自动保存现状。</div>';
+        return self::page('网站备份', $body);
+    }
+
+    private static function createBackup(array $session, string $storageRoot): array
+    {
+        KuaizCmsBackup::create($storageRoot, null, 'user:' . $session['user']['id']);
+        return self::redirect('/admin/backups?created=1');
+    }
+
     private static function themePreview(array $manifest): string
     {
         $colors = $manifest['design']['colors'];
@@ -876,8 +1118,9 @@ final class KuaizCmsAdminApplication
 
     private static function userCard(array $session, string $csrfToken): string
     {
-        return '<div class="user"><div><strong>' . self::h($session['user']['display_name'])
-            . '</strong><small>' . self::h(self::roleLabel($session['user']['role']))
+        return '<div class="user"><div><strong><a href="/admin/account">'
+            . self::h($session['user']['display_name']) . '</a></strong><small>'
+            . self::h(self::roleLabel($session['user']['role']))
             . '</small></div><form method="post" action="/admin/logout">'
             . self::hidden('_csrf', $csrfToken)
             . '<button class="text-button" type="submit">退出</button></form></div>';
@@ -989,12 +1232,18 @@ final class KuaizCmsAdminApplication
             return ['admin', 'editor', 'viewer'];
         }
         if (in_array($path, [
-            '/admin/content/save', '/admin/content/state',
+            '/admin/content/save', '/admin/content/state', '/admin/content/restore-revision',
             '/admin/media/upload', '/admin/media/update', '/admin/media/state',
         ], true)) {
             return ['admin', 'editor'];
         }
-        if (in_array($path, ['/admin/settings', '/admin/themes/activate'], true)) {
+        if ($path === '/admin/account/password') {
+            return ['admin', 'editor', 'viewer'];
+        }
+        if (in_array($path, [
+            '/admin/settings', '/admin/themes/activate', '/admin/users/create',
+            '/admin/users/access', '/admin/backups/create',
+        ], true)) {
             return ['admin'];
         }
         throw new RuntimeException('cms_auth_role_forbidden');
@@ -1048,7 +1297,7 @@ final class KuaizCmsAdminApplication
     private static function physicalAdminUrls(string $html): string
     {
         $rewritten = preg_replace_callback(
-            '#((?:href|action|src)=")(/admin(?:/[a-z]+)*)(?=[?"])#D',
+            '#((?:href|action|src)=")(/admin(?:/[a-z-]+)*)(?=[?"])#D',
             static fn(array $match): string => $match[1] . rtrim($match[2], '/') . '/',
             $html
         );
@@ -1192,6 +1441,44 @@ final class KuaizCmsAdminApplication
         return (int)$value;
     }
 
+    private static function queryPage(array $query): int
+    {
+        $value = self::queryText($query, 'p', 8, true);
+        if ($value === '') {
+            return 1;
+        }
+        if (!ctype_digit($value) || (int)$value < 1 || (int)$value > 33334) {
+            throw new RuntimeException('cms_admin_query_invalid');
+        }
+        return (int)$value;
+    }
+
+    private static function pagination(
+        string $path,
+        int $page,
+        int $total,
+        array $parameters
+    ): string {
+        $pages = max(1, (int)ceil($total / self::PAGE_SIZE));
+        if ($pages <= 1) {
+            return '';
+        }
+        $link = static function (int $target) use ($path, $parameters): string {
+            $query = ['p' => (string)$target];
+            foreach ($parameters as $key => $value) {
+                if (is_string($value) && $value !== '') {
+                    $query[$key] = $value;
+                }
+            }
+            return $path . '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
+        };
+        return '<nav class="pagination" aria-label="分页">'
+            . ($page > 1 ? '<a href="' . self::h($link($page - 1)) . '">← 上一页</a>' : '<span></span>')
+            . '<span>第 ' . $page . ' / ' . $pages . ' 页</span>'
+            . ($page < $pages ? '<a href="' . self::h($link($page + 1)) . '">下一页 →</a>' : '<span></span>')
+            . '</nav>';
+    }
+
     private static function hidden(string $name, string $value): string
     {
         return '<input type="hidden" name="' . self::h($name) . '" value="' . self::h($value) . '">';
@@ -1215,6 +1502,11 @@ final class KuaizCmsAdminApplication
             'cms_auth_setup_token_invalid' => '一次性启用码不正确。',
             'cms_auth_username_invalid' => '登录名格式不正确。',
             'cms_auth_password_invalid' => '密码至少需要 12 位。',
+            'cms_auth_current_password_invalid' => '当前密码不正确。',
+            'cms_auth_password_unchanged' => '新密码不能与当前密码相同。',
+            'cms_auth_username_exists' => '这个登录名已经存在。',
+            'cms_auth_self_lockout_forbidden' => '不能停用自己或取消自己的管理员权限。',
+            'cms_auth_last_admin_forbidden' => '网站必须保留至少一位启用中的管理员。',
             'cms_auth_credentials_invalid' => '登录名或密码不正确。',
             'cms_auth_rate_limited' => '尝试次数过多，请 15 分钟后再试。',
             'cms_auth_role_forbidden' => '当前账号没有执行此操作的权限。',
@@ -1283,7 +1575,7 @@ final class KuaizCmsAdminApplication
     private static function styles(): string
     {
         return <<<'CSS'
-:root{color-scheme:light;--bg:#f4f1e9;--surface:#fffdf8;--text:#17231d;--muted:#617067;--brand:#176146;--line:#dcd8ce;--danger:#9f352d}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}a{color:var(--brand);text-decoration:none}a:hover{text-decoration:underline}main{width:min(1160px,calc(100% - 32px));margin:32px auto 64px}.hero{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin:0 0 24px}.hero.compact{align-items:center}.hero h1,.auth h1{font-size:clamp(30px,5vw,52px);line-height:1.08;margin:4px 0 12px;letter-spacing:-.035em}.hero p{margin:0;color:var(--muted)}.hero-action{margin-top:16px!important}.eyebrow{color:var(--brand)!important;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.panel,.auth{background:var(--surface);border:1px solid var(--line);border-radius:22px;box-shadow:0 18px 50px rgba(23,35,29,.07)}.panel{padding:24px;margin:18px 0}.auth{width:min(540px,100%);margin:8vh auto;padding:clamp(24px,5vw,48px)}.auth>p{color:var(--muted)}.panel-head,.user,.types li,.revision header,.form-actions,.state-actions{display:flex;align-items:center;justify-content:space-between;gap:16px}.panel h2{font-size:21px;margin:0}.user{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:10px 14px;min-width:210px}.user strong,.user small{display:block}.user small,small{color:var(--muted)}.types{list-style:none;margin:16px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.types li{border:1px solid var(--line);border-radius:14px;padding:12px}.button{appearance:none;border:0;border-radius:11px;background:var(--brand);color:white;cursor:pointer;display:inline-block;font:inherit;font-weight:700;padding:10px 16px;text-align:center}.button:hover{text-decoration:none;filter:brightness(.95)}.button.secondary{background:#e7efe9;color:var(--brand)}.button.wide{width:100%;margin-top:8px}.button.disabled{cursor:default;display:block;opacity:.72;text-align:center;width:100%}.text-button{appearance:none;border:0;background:none;color:var(--brand);cursor:pointer;font:inherit;padding:0}.filters{display:flex;flex-wrap:wrap;gap:12px}.table-wrap{overflow:auto;margin-top:16px}table{border-collapse:collapse;width:100%;min-width:700px}th,td{border-top:1px solid var(--line);padding:13px 10px;text-align:left;vertical-align:middle}th{color:var(--muted);font-size:12px;text-transform:uppercase}td small{display:block}.actions{white-space:nowrap}.status,.flag{border-radius:999px;background:#edf3ef;color:var(--brand);display:inline-block;font-size:12px;padding:2px 8px}.flag{background:#fff0d7;color:#8b5410;margin-left:6px}.empty{color:var(--muted);padding:22px!important;text-align:center!important}form label{display:block;font-weight:700;margin:18px 0}input,textarea,select{background:white;border:1px solid #bfc8c1;border-radius:11px;color:var(--text);display:block;font:inherit;margin-top:7px;padding:11px 12px;width:100%}input:focus,textarea:focus,select:focus{border-color:var(--brand);outline:3px solid rgba(23,97,70,.12)}label small{display:block;font-weight:400;margin-top:5px}.check{display:grid!important;grid-template-columns:auto 1fr;column-gap:10px;align-items:center}.check input{margin:0;width:auto}.check small{grid-column:2}.required{color:var(--danger);font-size:12px}.editor{max-width:820px}.form-actions{justify-content:flex-end;margin-top:24px}.state-actions{border-top:1px solid var(--line);justify-content:flex-start;margin-top:28px;padding-top:18px}.notice{background:#edf3ef;border-radius:12px;color:var(--brand);margin:18px 0;padding:12px 14px}.notice.error{background:#fff0ed;color:var(--danger)}.timeline{display:grid;gap:16px}.revision{border:1px solid var(--line);border-radius:14px;padding:16px}.revision header span{color:var(--brand);font-size:12px}.revision pre{background:#18231e;color:#e9f0eb;border-radius:10px;max-height:340px;overflow:auto;padding:14px;white-space:pre-wrap}.media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;margin-top:18px}.media-card{border:1px solid var(--line);border-radius:16px;overflow:hidden}.media-card>a{background:#e9ede9;display:block;aspect-ratio:4/3}.media-card img{height:100%;object-fit:cover;width:100%}.media-body{padding:14px}.media-body>strong,.media-body>small{display:block}.media-meta{border-top:1px solid var(--line);margin-top:12px;padding-top:1px}.media-meta label{font-size:13px;margin:10px 0}.media-meta input,.media-meta textarea{padding:8px 9px}.media-state{margin-top:12px}.upload form{max-width:680px}.theme-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}.theme-card{background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:0 18px 50px rgba(23,35,29,.07);overflow:hidden}.theme-preview{aspect-ratio:18/11;background:#e9ede9;border-bottom:1px solid var(--line);display:block;object-fit:cover;width:100%}.theme-card-body{padding:20px}.theme-card-body>p{color:var(--muted);min-height:3.3em}.theme-card-body form{margin:0}.theme-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.theme-title h2{margin:0}.theme-status{background:#e1f2e8;border-radius:999px;color:var(--brand);font-size:12px;font-weight:800;padding:4px 9px;white-space:nowrap}footer{color:var(--muted);font-size:12px;padding:0 16px 32px;text-align:center}@media(max-width:720px){main{margin-top:20px}.hero{display:block}.user{margin-top:18px}.panel{padding:18px}.panel-head{align-items:flex-start;display:block}.filters{margin-top:12px}.form-actions{align-items:stretch;flex-direction:column}.form-actions .button{width:100%}.theme-grid{grid-template-columns:1fr}}
+:root{color-scheme:light;--bg:#f4f1e9;--surface:#fffdf8;--text:#17231d;--muted:#617067;--brand:#176146;--line:#dcd8ce;--danger:#9f352d}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}a{color:var(--brand);text-decoration:none}a:hover{text-decoration:underline}main{width:min(1160px,calc(100% - 32px));margin:32px auto 64px}.hero{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin:0 0 24px}.hero.compact{align-items:center}.hero h1,.auth h1{font-size:clamp(30px,5vw,52px);line-height:1.08;margin:4px 0 12px;letter-spacing:-.035em}.hero p{margin:0;color:var(--muted)}.hero-action{margin-top:16px!important}.eyebrow{color:var(--brand)!important;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.panel,.auth{background:var(--surface);border:1px solid var(--line);border-radius:22px;box-shadow:0 18px 50px rgba(23,35,29,.07)}.panel{padding:24px;margin:18px 0}.auth{width:min(540px,100%);margin:8vh auto;padding:clamp(24px,5vw,48px)}.auth>p{color:var(--muted)}.panel-head,.user,.types li,.revision header,.form-actions,.state-actions{display:flex;align-items:center;justify-content:space-between;gap:16px}.panel h2{font-size:21px;margin:0}.user{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:10px 14px;min-width:210px}.user strong,.user small{display:block}.user small,small{color:var(--muted)}.types{list-style:none;margin:16px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.types li{border:1px solid var(--line);border-radius:14px;padding:12px}.button{appearance:none;border:0;border-radius:11px;background:var(--brand);color:white;cursor:pointer;display:inline-block;font:inherit;font-weight:700;padding:10px 16px;text-align:center}.button:hover{text-decoration:none;filter:brightness(.95)}.button.secondary{background:#e7efe9;color:var(--brand)}.button.wide{width:100%;margin-top:8px}.button.disabled{cursor:default;display:block;opacity:.72;text-align:center;width:100%}.text-button{appearance:none;border:0;background:none;color:var(--brand);cursor:pointer;font:inherit;padding:0}.filters{display:flex;flex-wrap:wrap;gap:12px}.search-form,.inline-form,.pagination{display:flex;align-items:center;gap:10px}.search-form{margin-top:16px}.search-form input{margin:0}.inline-form select{margin:0;min-width:115px}.pagination{justify-content:space-between;margin-top:18px}.table-wrap{overflow:auto;margin-top:16px}table{border-collapse:collapse;width:100%;min-width:700px}th,td{border-top:1px solid var(--line);padding:13px 10px;text-align:left;vertical-align:middle}th{color:var(--muted);font-size:12px;text-transform:uppercase}td small{display:block}.actions{white-space:nowrap}.status,.flag{border-radius:999px;background:#edf3ef;color:var(--brand);display:inline-block;font-size:12px;padding:2px 8px}.flag{background:#fff0d7;color:#8b5410;margin-left:6px}.empty{color:var(--muted);padding:22px!important;text-align:center!important}form label{display:block;font-weight:700;margin:18px 0}input,textarea,select{background:white;border:1px solid #bfc8c1;border-radius:11px;color:var(--text);display:block;font:inherit;margin-top:7px;padding:11px 12px;width:100%}input:focus,textarea:focus,select:focus{border-color:var(--brand);outline:3px solid rgba(23,97,70,.12)}label small{display:block;font-weight:400;margin-top:5px}.check{display:grid!important;grid-template-columns:auto 1fr;column-gap:10px;align-items:center}.check input{margin:0;width:auto}.check small{grid-column:2}.required{color:var(--danger);font-size:12px}.editor{max-width:820px}.form-actions{justify-content:flex-end;margin-top:24px}.state-actions{border-top:1px solid var(--line);justify-content:flex-start;margin-top:28px;padding-top:18px}.notice{background:#edf3ef;border-radius:12px;color:var(--brand);margin:18px 0;padding:12px 14px}.notice.error{background:#fff0ed;color:var(--danger)}.timeline{display:grid;gap:16px}.revision{border:1px solid var(--line);border-radius:14px;padding:16px}.revision header span{color:var(--brand);font-size:12px}.revision pre{background:#18231e;color:#e9f0eb;border-radius:10px;max-height:340px;overflow:auto;padding:14px;white-space:pre-wrap}.media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;margin-top:18px}.media-card{border:1px solid var(--line);border-radius:16px;overflow:hidden}.media-card>a{background:#e9ede9;display:block;aspect-ratio:4/3}.media-card img{height:100%;object-fit:cover;width:100%}.media-body{padding:14px}.media-body>strong,.media-body>small{display:block}.media-meta{border-top:1px solid var(--line);margin-top:12px;padding-top:1px}.media-meta label{font-size:13px;margin:10px 0}.media-meta input,.media-meta textarea{padding:8px 9px}.media-state{margin-top:12px}.upload form{max-width:680px}.theme-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}.theme-card{background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:0 18px 50px rgba(23,35,29,.07);overflow:hidden}.theme-preview{aspect-ratio:18/11;background:#e9ede9;border-bottom:1px solid var(--line);display:block;object-fit:cover;width:100%}.theme-card-body{padding:20px}.theme-card-body>p{color:var(--muted);min-height:3.3em}.theme-card-body form{margin:0}.theme-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.theme-title h2{margin:0}.theme-status{background:#e1f2e8;border-radius:999px;color:var(--brand);font-size:12px;font-weight:800;padding:4px 9px;white-space:nowrap}footer{color:var(--muted);font-size:12px;padding:0 16px 32px;text-align:center}@media(max-width:720px){main{margin-top:20px}.hero{display:block}.user{margin-top:18px}.panel{padding:18px}.panel-head{align-items:flex-start;display:block}.filters{margin-top:12px}.form-actions{align-items:stretch;flex-direction:column}.form-actions .button{width:100%}.theme-grid{grid-template-columns:1fr}.search-form,.inline-form{align-items:stretch;flex-direction:column}}
 CSS;
     }
 }

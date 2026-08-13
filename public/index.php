@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/src/Compatibility.php';
 require_once dirname(__DIR__) . '/src/Database.php';
 require_once dirname(__DIR__) . '/src/Maintenance.php';
+require_once dirname(__DIR__) . '/src/Backup.php';
 require_once dirname(__DIR__) . '/src/Auth.php';
 require_once dirname(__DIR__) . '/src/ContentRepository.php';
 require_once dirname(__DIR__) . '/src/MediaRepository.php';
@@ -23,9 +24,15 @@ if (!is_string($dataDirectory) || $dataDirectory === '') {
 
 $maintenanceLock = null;
 try {
-    $maintenanceLock = KuaizCmsMaintenance::shared($dataDirectory);
-    $pdo = KuaizCmsDatabase::connect($dataDirectory . '/cms.sqlite');
     $requestPath = parse_url((string)($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
+    $normalizedPath = is_string($requestPath) && $requestPath !== '/'
+        ? rtrim($requestPath, '/') : $requestPath;
+    $createsBackup = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) === 'POST'
+        && $normalizedPath === '/admin/backups/create';
+    if (!$createsBackup) {
+        $maintenanceLock = KuaizCmsMaintenance::shared($dataDirectory);
+    }
+    $pdo = KuaizCmsDatabase::connect($dataDirectory . '/cms.sqlite');
     $isAdmin = is_string($requestPath)
         && ($requestPath === '/admin' || str_starts_with($requestPath, '/admin/'));
     if ($isAdmin) {

@@ -25,6 +25,15 @@ final class KuaizCmsThemeRenderer
         $description = self::plain($page['description'] ?? $settings['description'], 500);
         $canonicalPath = self::canonicalPath($page['canonical_path'] ?? '/');
         $canonicalUrl = self::publicUrl($canonicalPath);
+        $pagination = is_array($page['pagination'] ?? null) ? $page['pagination'] : null;
+        if (is_array($pagination) && ($pagination['current'] ?? 1) > 1
+            && is_string($pagination['path'] ?? null)) {
+            $canonicalUrl = '/?page=' . str_replace(
+                '%2F',
+                '/',
+                rawurlencode(ltrim($pagination['path'], '/'))
+            ) . '&p=' . $pagination['current'];
+        }
         $canonical = $settings['base_url'] . ($canonicalUrl === '/' ? '' : $canonicalUrl);
         $title = $template === 'home'
             ? $settings['site_name']
@@ -34,6 +43,7 @@ final class KuaizCmsThemeRenderer
         foreach ($manifest['templates'][$template] as $section) {
             $sections .= self::section($section, $settings, $context);
         }
+        $sections .= self::pagination($pagination);
         $navigation = self::navigation($context['navigation'] ?? []);
         $jsonLd = self::structuredData(
             $template,
@@ -146,6 +156,27 @@ final class KuaizCmsThemeRenderer
         return '<section id="section-' . self::h($section['id']) . '" class="'
             . self::h($classes . ' ' . $devices) . '"><div class="section-inner">'
             . $content . '</div></section>';
+    }
+
+    private static function pagination($value): string
+    {
+        if (!is_array($value)
+            || !is_int($value['current'] ?? null)
+            || !is_int($value['pages'] ?? null)
+            || !is_string($value['path'] ?? null)
+            || $value['pages'] <= 1) {
+            return '';
+        }
+        $current = $value['current'];
+        $pages = $value['pages'];
+        $path = ltrim($value['path'], '/');
+        $url = static fn(int $page): string => '/?page='
+            . str_replace('%2F', '/', rawurlencode($path)) . '&p=' . $page;
+        return '<nav class="public-pagination" aria-label="内容分页">'
+            . ($current > 1 ? '<a href="' . self::h($url($current - 1)) . '">← 上一页</a>' : '<span></span>')
+            . '<span>第 ' . $current . ' / ' . $pages . ' 页</span>'
+            . ($current < $pages ? '<a href="' . self::h($url($current + 1)) . '">下一页 →</a>' : '<span></span>')
+            . '</nav>';
     }
 
     private static function hero(array $data, array $context): string
@@ -453,13 +484,13 @@ final class KuaizCmsThemeRenderer
             . 'px;--shadow:' . $shadow . ';--section-gap:' . $gap . ';--body-font:'
             . $fonts[$design['typography']['body']] . ';--heading-font:'
             . $fonts[$design['typography']['heading']] . '}*{box-sizing:border-box}html{scroll-behavior:smooth}'
-            . 'body{margin:0;background:var(--bg);color:var(--text);font:16px/1.7 var(--body-font)}'
+            . 'body{margin:0;background:var(--bg);color:var(--text);font:16px/1.7 var(--body-font);overflow-wrap:anywhere}'
             . 'a{color:var(--primary);text-decoration-thickness:.08em;text-underline-offset:.2em}img{display:block;max-width:100%;height:auto}'
             . '.skip{position:absolute;inset-inline-start:-9999px}.skip:focus{inset:12px auto auto 12px;background:var(--surface);padding:10px;z-index:20}'
             . '.shell{width:min(var(--width),calc(100% - 36px));margin-inline:auto}.site-header{background:color-mix(in srgb,var(--bg) 92%,transparent);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10;backdrop-filter:blur(16px)}'
             . '.header-inner,.footer-inner{display:flex;align-items:center;justify-content:space-between;gap:24px;padding-block:18px}.brand{color:var(--text);font:700 20px/1.2 var(--heading-font);text-decoration:none}.site-header nav{display:flex;gap:18px;flex-wrap:wrap}.site-header nav a{text-decoration:none}.section{padding-block:var(--section-gap)}.section-inner{width:min(var(--width),calc(100% - 36px));margin-inline:auto}.width-narrow .section-inner{max-width:720px}.width-content .section-inner{max-width:920px}.width-full .section-inner{width:100%;max-width:none}.tone-surface{background:var(--surface)}.tone-primary{background:var(--primary);color:var(--primary-text)}.tone-primary a{color:var(--primary-text)}.tone-accent{border-block:1px solid var(--accent);background:var(--surface)}.tone-muted{background:color-mix(in srgb,var(--muted) 9%,var(--bg))}'
             . 'h1,h2,h3{font-family:var(--heading-font);line-height:1.1;letter-spacing:-.025em;margin-block:0 .55em}h1{font-size:clamp(42px,8vw,92px);max-width:14ch}h2{font-size:clamp(30px,5vw,56px)}h3{font-size:22px}.lead{font-size:clamp(18px,2.2vw,24px);max-width:62ch;color:var(--muted)}.tone-primary .lead{color:inherit}.eyebrow{color:var(--accent);font-weight:800;letter-spacing:.12em;text-transform:uppercase;font-size:12px}.component-hero .section-inner,.component-media_text .section-inner{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(280px,.95fr);align-items:center;gap:clamp(28px,6vw,80px)}.variant-centered .section-inner{display:block;text-align:center}.variant-centered h1{margin-inline:auto}.hero-media img,.media-text-image img{border-radius:var(--radius);box-shadow:var(--shadow);width:100%;max-height:680px;object-fit:cover}.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}.cols-1{grid-template-columns:1fr}.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}.card-media{aspect-ratio:4/3;display:block;overflow:hidden}.card-media img{height:100%;object-fit:cover;width:100%}.card-body{padding:20px}.card-body h3 a{color:var(--text);text-decoration:none}.card-body p{color:var(--muted)}.prose{font-size:18px}.prose p{margin-block:0 1.3em}.faq details{border-top:1px solid var(--border);padding-block:16px}.faq summary{cursor:pointer;font-weight:700}.button{background:var(--primary);border-radius:999px;color:var(--primary-text)!important;display:inline-block;font-weight:700;padding:11px 20px;text-decoration:none}.tone-primary .button{background:var(--primary-text);color:var(--primary)!important}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}.stat strong,.stat span{display:block}.stat strong{font:700 36px/1.1 var(--heading-font)}.site-footer{border-top:1px solid var(--border);padding-block:28px}.site-footer p{color:var(--muted);margin:4px 0}.empty-state{color:var(--muted)}'
-            . '.extension-slot{align-items:center;display:grid;gap:32px;grid-template-columns:minmax(0,1fr) minmax(260px,.7fr)}.extension-actions{display:flex;flex-wrap:wrap;gap:12px;margin-block-start:24px}.extension-action{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);display:flex;flex-direction:column;padding:14px 18px;text-decoration:none}.extension-action span{color:var(--muted);font-size:12px}.extension-image img{border-radius:var(--radius);box-shadow:var(--shadow);height:auto;width:100%}'
+            . '.extension-slot{align-items:center;display:grid;gap:32px;grid-template-columns:minmax(0,1fr) minmax(260px,.7fr)}.extension-slot>*{min-width:0}.extension-actions{display:flex;flex-wrap:wrap;gap:12px;margin-block-start:24px}.extension-action{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);display:flex;flex-direction:column;min-width:0;padding:14px 18px;text-decoration:none}.extension-action span{color:var(--muted);font-size:12px}.extension-image img{border-radius:var(--radius);box-shadow:var(--shadow);height:auto;width:100%}.public-pagination{align-items:center;display:flex;gap:20px;justify-content:space-between;margin:0 auto;padding:28px 18px 64px;width:min(var(--width),100%)}'
             . '@media(max-width:800px){.header-inner,.footer-inner{align-items:flex-start;flex-direction:column}.component-hero .section-inner,.component-media_text .section-inner,.extension-slot{grid-template-columns:1fr}.cards,.cols-2,.cols-3,.cols-4{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}.show-desktop:not(.show-mobile){display:none}}'
             . '@media(min-width:801px){.show-mobile:not(.show-desktop){display:none}}';
     }

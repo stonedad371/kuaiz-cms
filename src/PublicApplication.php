@@ -98,6 +98,17 @@ final class KuaizCmsPublicApplication
         foreach ($types as $type) {
             $basePath = '/' . $type['route_slug'];
             if ($path === $basePath) {
+                try {
+                    $pageNumber = self::pageNumber($query['p'] ?? null);
+                } catch (RuntimeException $ignored) {
+                    return self::plain(400, 'Invalid page number.', true);
+                }
+                $pageSize = 24;
+                $total = (int)$type['published_count'];
+                $pageCount = max(1, (int)ceil($total / $pageSize));
+                if ($pageNumber > $pageCount && $total > 0) {
+                    return self::plain(404, 'Page not found.', true);
+                }
                 $entries = array_map(
                     static fn(array $entry): array => self::publicEntry(
                         $entry,
@@ -107,8 +118,8 @@ final class KuaizCmsPublicApplication
                         $pdo,
                         $type['extension_id'],
                         $type['type_key'],
-                        100,
-                        0
+                        $pageSize,
+                        ($pageNumber - 1) * $pageSize
                     )
                 );
                 $context = [
@@ -116,6 +127,11 @@ final class KuaizCmsPublicApplication
                         'title' => $type['label'],
                         'description' => $type['label'] . '列表',
                         'canonical_path' => $basePath,
+                        'pagination' => [
+                            'current' => $pageNumber,
+                            'pages' => $pageCount,
+                            'path' => $basePath,
+                        ],
                     ],
                     'content' => [],
                     'collection' => ['current' => $entries],
@@ -303,20 +319,42 @@ final class KuaizCmsPublicApplication
     {
         $urls = [];
         if ($settings['search_indexing']) {
-            $urls[] = ['path' => '/', 'updated_at' => $settings['updated_at']];
+            $urls[] = [
+                'path' => '/',
+                'parameters' => [],
+                'updated_at' => $settings['updated_at'],
+            ];
             foreach (KuaizCmsContentRepository::publicContentTypes($pdo) as $type) {
                 $basePath = '/' . $type['route_slug'];
-                $urls[] = ['path' => $basePath, 'updated_at' => $settings['updated_at']];
-                foreach (KuaizCmsContentRepository::publishedList(
-                    $pdo,
-                    $type['extension_id'],
-                    $type['type_key'],
-                    100,
-                    0
-                ) as $entry) {
+                $urls[] = [
+                    'path' => $basePath,
+                    'parameters' => [],
+                    'updated_at' => $settings['updated_at'],
+                ];
+                $offset = 0;
+                do {
+                    $batch = KuaizCmsContentRepository::publishedList(
+                        $pdo,
+                        $type['extension_id'],
+                        $type['type_key'],
+                        100,
+                        $offset
+                    );
+                    foreach ($batch as $entry) {
+                        $urls[] = [
+                            'path' => $basePath . '/' . $entry['slug'],
+                            'parameters' => [],
+                            'updated_at' => $entry['updated_at'],
+                        ];
+                    }
+                    $offset += count($batch);
+                } while (count($batch) === 100);
+                $pageCount = (int)ceil(((int)$type['published_count']) / 24);
+                for ($page = 2; $page <= $pageCount; $page++) {
                     $urls[] = [
-                        'path' => $basePath . '/' . $entry['slug'],
-                        'updated_at' => $entry['updated_at'],
+                        'path' => $basePath,
+                        'parameters' => ['p' => $page],
+                        'updated_at' => $settings['updated_at'],
                     ];
                 }
             }
@@ -325,7 +363,7 @@ final class KuaizCmsPublicApplication
             . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
         foreach ($urls as $url) {
             $location = $settings['base_url'] . ($url['path'] === '/'
-                ? '' : self::publicUrl($url['path']));
+                ? '' : self::publicUrl($url['path'], $url['parameters']));
             $body .= '<url><loc>' . self::xml($location) . '</loc><lastmod>'
                 . gmdate('Y-m-d', (int)$url['updated_at']) . '</lastmod></url>';
         }
@@ -398,9 +436,29 @@ final class KuaizCmsPublicApplication
         return '/' . $value;
     }
 
-    private static function publicUrl(string $path): string
+    private static function publicUrl(string $path, array $parameters = []): string
     {
-        return $path === '/' ? '/' : '/?page=' . ltrim($path, '/');
+        if ($path === '/') {
+            return $parameters === []
+                ? '/'
+                : '/?' . http_build_query($parameters, '', '&', PHP_QUERY_RFC3986);
+        }
+        $url = '/?page=' . str_replace('%2F', '/', rawurlencode(ltrim($path, '/')));
+        return $parameters === []
+            ? $url
+            : $url . '&' . http_build_query($parameters, '', '&', PHP_QUERY_RFC3986);
+    }
+
+    private static function pageNumber($value): int
+    {
+        if ($value === null || $value === '') {
+            return 1;
+        }
+        if (!is_string($value) || !ctype_digit($value)
+            || (int)$value < 1 || (int)$value > 41667) {
+            throw new RuntimeException('cms_public_page_invalid');
+        }
+        return (int)$value;
     }
 
     private static function entryTitle(array $content, string $fallback): string

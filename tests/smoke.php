@@ -213,6 +213,35 @@ try {
         $mediaFile['mime_type'] === $expectedMediaType && $mediaFile['byte_size'] > 0,
         'smoke_media_read_failed'
     );
+    for ($number = 2; $number <= 31; $number++) {
+        $fixturePath = $data . '/media-' . $number . '.png';
+        $fixture = imagecreatetruecolor(32, 24);
+        smoke_require(is_resource($fixture) || is_object($fixture), 'smoke_media_fixture_failed');
+        $color = imagecolorallocate(
+            $fixture,
+            ($number * 37) % 255,
+            ($number * 67) % 255,
+            ($number * 97) % 255
+        );
+        imagefilledrectangle($fixture, 0, 0, 31, 23, $color);
+        smoke_require(imagepng($fixture, $fixturePath), 'smoke_media_fixture_write_failed');
+        imagedestroy($fixture);
+        KuaizCmsMediaRepository::storeImage(
+            $pdo,
+            $data,
+            $fixturePath,
+            $number === 31 ? 'needle-image.png' : 'fixture-' . $number . '.png',
+            $number === 31 ? 'Needle media' : 'Fixture media ' . $number,
+            '',
+            'test:smoke'
+        );
+    }
+    smoke_require(
+        KuaizCmsMediaRepository::count($pdo) === 31
+            && count(KuaizCmsMediaRepository::items($pdo, 'active', 30, 30)) === 1
+            && KuaizCmsMediaRepository::count($pdo, 'active', 'Needle media') === 1,
+        'smoke_media_pagination_search_failed'
+    );
     KuaizCmsContentRepository::save(
         $pdo,
         'kuaiz.directory',
@@ -254,6 +283,278 @@ try {
         str_contains((string)($response['headers']['X-Robots-Tag'] ?? ''), 'noindex'),
         'smoke_default_noindex_failed'
     );
+
+    for ($number = 2; $number <= 105; $number++) {
+        KuaizCmsContentRepository::save(
+            $pdo,
+            'kuaiz.directory',
+            'listing',
+            'listing-' . str_pad((string)$number, 3, '0', STR_PAD_LEFT),
+            [
+                'title' => $number === 105 ? 'Needle Result' : 'Listing ' . $number,
+                'summary' => 'Pagination fixture ' . $number,
+                'phone' => '+86 10 5555 ' . str_pad((string)$number, 4, '0', STR_PAD_LEFT),
+                'website' => 'https://example.com/listing-' . $number,
+            ],
+            'test:smoke',
+            true
+        );
+    }
+    $secondPage = KuaizCmsPublicApplication::handle(
+        $pdo,
+        ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/?page=directory&p=2'],
+        $data,
+        ['page' => 'directory', 'p' => '2']
+    );
+    smoke_require(
+        $secondPage['status'] === 200
+            && str_contains($secondPage['body'], '第 2 / 5 页')
+            && str_contains($secondPage['body'], 'rel="canonical" href="https://cms-smoke.example.com/?page=directory&amp;p=2"'),
+        'smoke_public_pagination_failed'
+    );
+    $invalidPage = KuaizCmsPublicApplication::handle(
+        $pdo,
+        ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/?page=directory&p=999'],
+        $data,
+        ['page' => 'directory', 'p' => '999']
+    );
+    smoke_require($invalidPage['status'] === 404, 'smoke_public_page_boundary_failed');
+
+    KuaizCmsSiteSettings::save($pdo, [
+        'site_name' => 'Kuaiz CMS Smoke Test',
+        'tagline' => 'Independent publishing',
+        'description' => 'A disposable site used by the public repository smoke test.',
+        'language' => 'en-US',
+        'direction' => 'ltr',
+        'base_url' => 'https://cms-smoke.example.com',
+        'search_indexing' => true,
+        'contact_title' => '',
+        'contact_summary' => '',
+        'cover_media_id' => null,
+    ], 'test:smoke');
+    $sitemap = KuaizCmsPublicApplication::handle(
+        $pdo,
+        ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/sitemap.xml'],
+        $data
+    );
+    smoke_require(
+        $sitemap['status'] === 200
+            && substr_count($sitemap['body'], '<url>') === 111
+            && str_contains($sitemap['body'], '/?page=directory/listing-105')
+            && str_contains($sitemap['body'], '/?page=directory&amp;p=5'),
+        'smoke_complete_sitemap_failed'
+    );
+
+    $dashboard = KuaizCmsAdminApplication::handle(
+        $pdo,
+        ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/admin?p=2'],
+        ['p' => '2'],
+        [],
+        $cookies,
+        [],
+        $data
+    );
+    smoke_require(
+        $dashboard['status'] === 200
+            && str_contains($dashboard['body'], '第 2 / 4 页')
+            && str_contains($dashboard['body'], '/admin/?p=1'),
+        'smoke_admin_pagination_failed'
+    );
+    $filteredDashboard = KuaizCmsAdminApplication::handle(
+        $pdo,
+        ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/admin?status=published'],
+        ['status' => 'published'],
+        [],
+        $cookies,
+        [],
+        $data
+    );
+    smoke_require(
+        str_contains($filteredDashboard['body'], '?p=2&amp;status=published')
+            && !str_contains($filteredDashboard['body'], '&amp;amp;status='),
+        'smoke_admin_pagination_filter_failed'
+    );
+    $search = KuaizCmsAdminApplication::handle(
+        $pdo,
+        ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/admin?q=Needle'],
+        ['q' => 'Needle'],
+        [],
+        $cookies,
+        [],
+        $data
+    );
+    smoke_require(
+        $search['status'] === 200
+            && str_contains($search['body'], 'Needle Result')
+            && str_contains($search['body'], '内容（1）'),
+        'smoke_admin_search_failed'
+    );
+    $mediaDashboard = KuaizCmsAdminApplication::handle(
+        $pdo,
+        ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/admin/media?p=2'],
+        ['p' => '2'],
+        [],
+        $cookies,
+        [],
+        $data
+    );
+    $mediaSearch = KuaizCmsAdminApplication::handle(
+        $pdo,
+        ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/admin/media?q=Needle'],
+        ['q' => 'Needle'],
+        [],
+        $cookies,
+        [],
+        $data
+    );
+    smoke_require(
+        str_contains($mediaDashboard['body'], '第 2 / 2 页')
+            && str_contains($mediaSearch['body'], 'needle-image.png')
+            && str_contains($mediaSearch['body'], '可用图片（1）'),
+        'smoke_admin_media_search_failed'
+    );
+
+    $entry = KuaizCmsContentRepository::adminEntries(
+        $pdo,
+        'kuaiz.directory',
+        'listing',
+        null,
+        100,
+        0,
+        'first-listing'
+    )[0];
+    KuaizCmsContentRepository::save(
+        $pdo,
+        'kuaiz.directory',
+        'listing',
+        'first-listing',
+        [
+            'title' => 'Changed listing',
+            'summary' => 'A draft that will be replaced by a restored revision.',
+            'phone' => '+86 10 5555 0123',
+            'website' => 'https://example.com/changed-listing',
+        ],
+        'test:smoke',
+        false
+    );
+    $history = KuaizCmsContentRepository::history($pdo, $entry['id']);
+    $oldRevision = $history[count($history) - 1];
+    $restored = KuaizCmsAdminApplication::handle(
+        $pdo,
+        ['REQUEST_METHOD' => 'POST', 'REQUEST_URI' => '/admin/content/restore-revision'],
+        [],
+        [
+            '_csrf' => $cookies['__Host-kuaiz_cms_csrf'],
+            'entry_id' => (string)$entry['id'],
+            'revision_id' => (string)$oldRevision['id'],
+        ],
+        $cookies,
+        [],
+        $data
+    );
+    $restoredEntry = KuaizCmsContentRepository::adminEntry($pdo, $entry['id']);
+    smoke_require(
+        $restored['status'] === 303
+            && $restoredEntry['current_version'] === 3
+            && $restoredEntry['payload']['title'] === 'First listing',
+        'smoke_admin_revision_restore_failed'
+    );
+
+    $createdUser = KuaizCmsAdminApplication::handle(
+        $pdo,
+        ['REQUEST_METHOD' => 'POST', 'REQUEST_URI' => '/admin/users/create'],
+        [],
+        [
+            '_csrf' => $cookies['__Host-kuaiz_cms_csrf'],
+            'username' => 'viewer@example.com',
+            'display_name' => 'Smoke Viewer',
+            'password' => 'Viewer password 123!',
+            'role' => 'viewer',
+        ],
+        $cookies,
+        [],
+        $data
+    );
+    $viewerId = (int)$pdo->query(
+        "SELECT id FROM cms_users WHERE username='viewer@example.com'"
+    )->fetchColumn();
+    $disabledUser = KuaizCmsAdminApplication::handle(
+        $pdo,
+        ['REQUEST_METHOD' => 'POST', 'REQUEST_URI' => '/admin/users/access'],
+        [],
+        [
+            '_csrf' => $cookies['__Host-kuaiz_cms_csrf'],
+            'user_id' => (string)$viewerId,
+            'role' => 'viewer',
+            'status' => 'disabled',
+        ],
+        $cookies,
+        [],
+        $data
+    );
+    $usersPage = KuaizCmsAdminApplication::handle(
+        $pdo,
+        ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/admin/users'],
+        [],
+        [],
+        $cookies,
+        [],
+        $data
+    );
+    smoke_require(
+        $createdUser['status'] === 303
+            && $disabledUser['status'] === 303
+            && $usersPage['status'] === 200
+            && str_contains($usersPage['body'], 'Smoke Viewer')
+            && (string)$pdo->query('SELECT status FROM cms_users WHERE id=' . $viewerId)->fetchColumn() === 'disabled',
+        'smoke_admin_users_failed'
+    );
+
+    $backupResponse = KuaizCmsAdminApplication::handle(
+        $pdo,
+        ['REQUEST_METHOD' => 'POST', 'REQUEST_URI' => '/admin/backups/create'],
+        [],
+        ['_csrf' => $cookies['__Host-kuaiz_cms_csrf']],
+        $cookies,
+        [],
+        $data
+    );
+    $backupsPage = KuaizCmsAdminApplication::handle(
+        $pdo,
+        ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/admin/backups?created=1'],
+        ['created' => '1'],
+        [],
+        $cookies,
+        [],
+        $data
+    );
+    smoke_require(
+        $backupResponse['status'] === 303
+            && count(KuaizCmsBackup::backups($data)) === 1
+            && str_contains($backupsPage['body'], '备份已经创建'),
+        'smoke_admin_backup_failed'
+    );
+
+    $passwordResponse = KuaizCmsAdminApplication::handle(
+        $pdo,
+        ['REQUEST_METHOD' => 'POST', 'REQUEST_URI' => '/admin/account/password'],
+        [],
+        [
+            '_csrf' => $cookies['__Host-kuaiz_cms_csrf'],
+            'current_password' => 'Correct horse battery staple!',
+            'new_password' => 'A safer smoke password 2026!',
+            'password_confirmation' => 'A safer smoke password 2026!',
+        ],
+        $cookies,
+        [],
+        $data
+    );
+    smoke_require(
+        $passwordResponse['status'] === 200
+            && str_contains($passwordResponse['body'], '密码已经修改')
+            && (int)$pdo->query('SELECT COUNT(*) FROM cms_sessions')->fetchColumn() === 0,
+        'smoke_admin_password_change_failed'
+    );
     $schema = (int)$pdo->query('PRAGMA user_version')->fetchColumn();
     $pdo = null;
     $backup = KuaizCmsBackup::create($data, null, 'test:smoke');
@@ -261,6 +562,7 @@ try {
     smoke_require($backup['file_count'] >= 1, 'smoke_backup_failed');
     fwrite(STDOUT, json_encode([
         'backup_files' => $backup['file_count'],
+        'published_entries' => 105,
         'media_type' => $media['mime_type'],
         'ok' => true,
         'schema' => $schema,

@@ -15,7 +15,16 @@
 ```bash
 find . -type f -name '*.php' -not -path './var/*' -print0 | xargs -0 -n1 php -l
 php tests/smoke.php
+php tests/upgrade.php
+uv run pytest -q
+npm ci
+npx playwright install chromium
+npm run test:browser
 ```
+
+修改安装器、路由、主机兼容或发行流程时，还必须执行六种真实主机矩阵和上一公开版升级/
+故障回滚演练。Pull Request 请逐项填写仓库模板；稳定版门禁见
+[docs/stable-release-scope.md](docs/stable-release-scope.md)。
 
 提交应说明用户可见的变化、测试结果和安全影响。安全漏洞请按 [SECURITY.md](SECURITY.md)
 私下报告，不要先创建公开 Issue。

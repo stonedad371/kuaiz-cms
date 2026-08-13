@@ -331,7 +331,8 @@ SQL)->fetchAll();
         ?string $typeKey = null,
         ?string $status = null,
         int $limit = 50,
-        int $offset = 0
+        int $offset = 0,
+        ?string $search = null
     ): array {
         if ($extensionId !== null
             && !preg_match('/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$/D', $extensionId)) {
@@ -346,6 +347,7 @@ SQL)->fetchAll();
         if ($limit < 1 || $limit > 100 || $offset < 0 || $offset > 1000000) {
             throw new RuntimeException('cms_content_pagination_invalid');
         }
+        $search = self::search($search);
         $where = [];
         $params = [];
         if ($extensionId !== null) {
@@ -359,6 +361,10 @@ SQL)->fetchAll();
         if ($status !== null) {
             $where[] = 'e.status=:status';
             $params[':status'] = $status;
+        }
+        if ($search !== null) {
+            $where[] = "(e.slug LIKE :search ESCAPE '\\' OR current.payload_json LIKE :search ESCAPE '\\')";
+            $params[':search'] = '%' . self::like($search) . '%';
         }
         $sql = <<<'SQL'
 SELECT e.id,e.slug,e.status,e.current_revision_id,e.published_revision_id,
@@ -416,6 +422,36 @@ SQL;
             ];
         }
         return $result;
+    }
+
+    public static function adminEntryCount(
+        PDO $pdo,
+        ?string $status = null,
+        ?string $search = null
+    ): int {
+        if ($status !== null && !in_array($status, ['draft', 'published', 'archived'], true)) {
+            throw new RuntimeException('cms_content_filter_invalid');
+        }
+        $search = self::search($search);
+        $where = ["x.status='active'", 'e.current_revision_id IS NOT NULL'];
+        $params = [];
+        if ($status !== null) {
+            $where[] = 'e.status=:status';
+            $params[':status'] = $status;
+        }
+        if ($search !== null) {
+            $where[] = "(e.slug LIKE :search ESCAPE '\\' OR r.payload_json LIKE :search ESCAPE '\\')";
+            $params[':search'] = '%' . self::like($search) . '%';
+        }
+        $statement = $pdo->prepare(
+            'SELECT COUNT(*) FROM cms_entries e '
+            . 'JOIN cms_content_types ct ON ct.id=e.content_type_id '
+            . 'JOIN cms_extensions x ON x.extension_id=ct.extension_id '
+            . 'JOIN cms_entry_revisions r ON r.id=e.current_revision_id AND r.entry_id=e.id '
+            . 'WHERE ' . implode(' AND ', $where)
+        );
+        $statement->execute($params);
+        return (int)$statement->fetchColumn();
     }
 
     public static function history(PDO $pdo, int $entryId): array
@@ -846,6 +882,24 @@ SQL)->execute([
             throw new RuntimeException('cms_content_json_encode_failed');
         }
         return $body;
+    }
+
+    private static function search(?string $search): ?string
+    {
+        if ($search === null || trim($search) === '') {
+            return null;
+        }
+        $search = trim($search);
+        if (strlen($search) > 200 || !preg_match('//u', $search)
+            || preg_match('/[\x00-\x1f\x7f]/', $search)) {
+            throw new RuntimeException('cms_content_filter_invalid');
+        }
+        return $search;
+    }
+
+    private static function like(string $value): string
+    {
+        return strtr($value, ['\\' => '\\\\', '%' => '\\%', '_' => '\\_']);
     }
 
     private static function verifiedJson(

@@ -45,6 +45,9 @@ CMS 公开网站和人工编辑的运行前提。
 - Extension SDK v1 与不执行 PHP 的参考内容目录扩展；
 - 带 SHA-256 清单的备份恢复、维护锁和数据库升级失败回滚。
 
+后台已经包含成员权限、个人改密、内容与素材搜索分页、历史版本恢复和手动创建备份。公开
+列表会分页，站点地图会遍历全部已发布内容，不再只覆盖前 100 条。
+
 预约、会员、支付和 AI 自动运营连接器尚未包含在当前开发预览中。
 
 ## 运行要求
@@ -85,7 +88,14 @@ uv sync --dev
 uv run pytest -q
 uv run python scripts/validate_cms_site.py website
 uv run python scripts/test_php_cms_host_matrix.py --server apache74-no-rewrite
+npm ci
+npx playwright install chromium
+npm run test:browser
 ```
+
+本机没有 PHP 时，可以先构建仓库的 Apache 测试镜像，再运行
+`KUAIZ_BROWSER_DOCKER=1 npm run test:browser`。上一公开版的真实升级与失败回滚使用
+`uv run python scripts/test_php_cms_release_upgrade.py`。
 
 部署后可以随时运行只读健康检查；它会报告 PHP 能力、数据目录、SQLite 完整性、当前 schema
 以及是否需要升级，不会自行修改数据库：
@@ -146,3 +156,6 @@ Cookie、API Key、客户正文或真实个人信息。
 社区版源码使用 [Apache License 2.0](LICENSE)。许可证允许使用、修改和分发源码，但不额外
 授予快智名称、标志、中央 AI 自动运营服务、客户专属主题或单独签约服务的使用权，具体说明
 见 [NOTICE](NOTICE)。
+
+首个稳定支持版明确承诺什么、当前还缺哪些人工与生产门禁，见
+[稳定支持版范围与门禁](docs/stable-release-scope.md)。
