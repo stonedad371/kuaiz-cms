@@ -258,6 +258,7 @@ def run_case(previous_installer: Path, current_installer: Path, *, rollback: boo
     document_root = host_root / DOCUMENT_ROOT
     document_root.mkdir(mode=0o777)
     os.chmod(host_root, 0o777)
+    os.chmod(document_root, 0o777)
     shutil.copyfile(previous_installer, document_root / "install.php")
     os.chmod(document_root / "install.php", 0o666)
     container = f"kuaiz-cms-upgrade-{secrets.token_hex(5)}"
