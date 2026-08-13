@@ -290,9 +290,15 @@ def run_case(previous_installer: Path, current_installer: Path, *, rollback: boo
 
         conflict = document_root / "directory" / slug / "index.php"
         if rollback:
-            conflict.parent.mkdir(parents=True, exist_ok=True)
-            conflict.write_text("<?php echo 'user-owned';\n", encoding="utf-8")
-            os.chmod(conflict, 0o666)
+            container_php(
+                container,
+                "$path=$argv[1].'/directory/'.$argv[2].'/index.php';"
+                "if(!is_dir(dirname($path))&&!mkdir(dirname($path),0755,true)){exit(2);}"
+                "if(file_put_contents($path,\"<?php echo 'user-owned';\\n\")===false){exit(3);}"
+                "chmod($path,0666);",
+                f"{MOUNT}/{DOCUMENT_ROOT}",
+                slug,
+            )
 
         shutil.copyfile(current_installer, document_root / "install.php")
         os.chmod(document_root / "install.php", 0o666)
